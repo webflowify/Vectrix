@@ -69,6 +69,9 @@ This satisfies GPLv2 §3: the binary is distributed from a designated place
 available from the same place via the URL above (also shown in the app's
 **Licenses** screen). Each released binary is tagged in the repository.
 
+- **Vectrix v1.0.5** (versionName `1.0.5`, versionCode 6) — the corresponding
+  source for this released binary is tagged **`v1.0.5`** in this repository.
+
 Notes for the distributor:
 - Keep the matching source available at the repository for as long as the
   corresponding binary is distributed.
