@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="6dp">
+
+    <LinearLayout
+        android:id="@+id/slotCard"
+        android:layout_width="match_parent"
+        android:layout_height="140dp"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="@drawable/save_slot_bg"
+        android:padding="8dp">
+
+        <TextView
+            android:id="@+id/slotLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Slot 1"
+            android:textColor="@color/md_on_surface"
+            android:textSize="12sp" />
+
+        <ImageView
+            android:id="@+id/slotThumbnail"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scaleType="centerCrop"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/slotEmptyText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Empty"
+            android:textColor="@color/md_on_surface_variant"
+            android:textSize="16sp"
+            android:visibility="visible" />
+
+        <TextView
+            android:id="@+id/slotTimestamp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/md_on_surface_variant"
+            android:textSize="10sp"
+            android:visibility="gone" />
+
+    </LinearLayout>
+</FrameLayout>

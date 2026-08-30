@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary: Neon Purple - Gaming/Retro identity -->
+    <color name="md_primary">#FF7C3AED</color>
+    <color name="md_on_primary">#FFFFFFFF</color>
+    <color name="md_primary_container">#FF2E1065</color>
+    <color name="md_on_primary_container">#FFE9D5FF</color>
+
+    <!-- Secondary: Cyan - Tech/PlayStation aesthetic -->
+    <color name="md_secondary">#FF06B6D4</color>
+    <color name="md_on_secondary">#FFFFFFFF</color>
+    <color name="md_secondary_container">#FF083344</color>
+    <color name="md_on_secondary_container">#FFCFFAFE</color>
+
+    <!-- Tertiary: Neon Magenta - Action/CTA highlights -->
+    <color name="md_tertiary">#FFE11D48</color>
+    <color name="md_on_tertiary">#FFFFFFFF</color>
+    <color name="md_tertiary_container">#FF4C0519</color>
+    <color name="md_on_tertiary_container">#FFFECDD3</color>
+
+    <!-- Background/Surface: Deep Space - Immersive dark -->
+    <color name="md_background">#FF0A0A1A</color>
+    <color name="md_on_background">#FFE2E8F0</color>
+    <color name="md_surface">#FF12122A</color>
+    <color name="md_on_surface">#FFE2E8F0</color>
+    <color name="md_surface_variant">#FF1E1E3F</color>
+    <color name="md_on_surface_variant">#FF94A3B8</color>
+    <color name="md_surface_container">#FF16162E</color>
+    <color name="md_surface_container_low">#FF0F0F24</color>
+    <color name="md_surface_container_high">#FF1C1C3A</color>
+
+    <!-- Error -->
+    <color name="md_error">#FFEF4444</color>
+    <color name="md_on_error">#FFFFFFFF</color>
+    <color name="md_error_container">#FF450A0A</color>
+    <color name="md_on_error_container">#FFFECACA</color>
+
+    <!-- Outline -->
+    <color name="md_outline">#FF334155</color>
+    <color name="md_outline_variant">#FF1E293B</color>
+
+    <!-- Accent utility colors -->
+    <color name="neon_green">#FF22C55E</color>
+    <color name="neon_cyan">#FF06B6D4</color>
+    <color name="neon_purple">#FF7C3AED</color>
+    <color name="neon_pink">#FFE11D48</color>
+
+    <!-- Legacy aliases for existing drawables -->
+    <color name="card_dark">#FF12122A</color>
+    <color name="card_border">#FF7C3AED</color>
+    <color name="card_border_dim">#337C3AED</color>
+</resources>

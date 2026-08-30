@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="recent_bios_files">
+        <item>No recent BIOS files</item>
+    </string-array>
+
+    <string-array name="recent_game_files">
+        <item>No recent game files</item>
+    </string-array>
+
+    <string-array name="bios_regions">
+        <item>NTSC-U (USA)</item>
+        <item>NTSC-J (Japan)</item>
+        <item>PAL (Europe)</item>
+    </string-array>
+
+    <string-array name="bios_regions_values">
+        <item>ntsc-u</item>
+        <item>ntsc-j</item>
+        <item>pal</item>
+    </string-array>
+
+    <string-array name="video_modes">
+        <item>Native (PS1 Resolution)</item>
+        <item>2x Native (640x480)</item>
+        <item>3x Native (960x720)</item>
+        <item>4x Native (1280x960)</item>
+        <item>Custom</item>
+    </string-array>
+
+    <string-array name="video_modes_values">
+        <item>native</item>
+        <item>2x</item>
+        <item>3x</item>
+        <item>4x</item>
+        <item>custom</item>
+    </string-array>
+
+    <string-array name="audio_interpolation_modes">
+        <item>None</item>
+        <item>Linear</item>
+        <item>Cosine</item>
+        <item>Cubic</item>
+    </string-array>
+
+    <string-array name="audio_interpolation_values">
+        <item>none</item>
+        <item>linear</item>
+        <item>cosine</item>
+        <item>cubic</item>
+    </string-array>
+
+    <string-array name="controller_types">
+        <item>Standard Controller</item>
+        <item>DualShock</item>
+        <item>DualShock Analog</item>
+        <item>Mouse</item>
+        <item>neGcon</item>
+        <item>GunCon</item>
+    </string-array>
+
+    <string-array name="controller_type_values">
+        <item>standard</item>
+        <item>dualshock</item>
+        <item>dualshock_analog</item>
+        <item>mouse</item>
+        <item>negcon</item>
+        <item>guncon</item>
+    </string-array>
+
+    <string-array name="memory_card_sizes">
+        <item>128 KB (Standard)</item>
+        <item>256 KB</item>
+        <item>512 KB</item>
+        <item>1 MB</item>
+        <item>2 MB</item>
+    </string-array>
+
+    <string-array name="memory_card_size_values">
+        <item>128</item>
+        <item>256</item>
+        <item>512</item>
+        <item>1024</item>
+        <item>2048</item>
+    </string-array>
+
+    <string-array name="cpu_interpreter_modes">
+        <item>Interpreter</item>
+        <item>JIT (Experimental)</item>
+    </string-array>
+
+    <string-array name="cpu_interpreter_values">
+        <item>interpreter</item>
+        <item>jit</item>
+    </string-array>
+
+    <string-array name="gpu_renderers">
+        <item>OpenGL ES 3.0</item>
+        <item>Vulkan</item>
+        <item>Software</item>
+    </string-array>
+
+    <string-array name="gpu_renderer_values">
+        <item>opengl</item>
+        <item>vulkan</item>
+        <item>software</item>
+    </string-array>
+
+    <string-array name="bios_validation_results">
+        <item>Valid BIOS</item>
+        <item>Invalid Checksum</item>
+        <item>Wrong Region</item>
+        <item>Corrupted File</item>
+        <item>File Not Found</item>
+    </string-array>
+
+    <string-array name="bios_validation_codes">
+        <item>valid</item>
+        <item>invalid_checksum</item>
+        <item>wrong_region</item>
+        <item>corrupted</item>
+        <item>not_found</item>
+    </string-array>
+
+    <string-array name="save_state_slots">
+        <item>Slot 1</item>
+        <item>Slot 2</item>
+        <item>Slot 3</item>
+        <item>Slot 4</item>
+        <item>Slot 5</item>
+        <item>Slot 6</item>
+        <item>Slot 7</item>
+        <item>Slot 8</item>
+        <item>Slot 9</item>
+        <item>Slot 10</item>
+    </string-array>
+
+    <string-array name="save_state_slot_values">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+        <item>6</item>
+        <item>7</item>
+        <item>8</item>
+        <item>9</item>
+        <item>10</item>
+    </string-array>
+
+
+
+    <string-array name="filter_modes">
+        <item>Nearest Neighbor</item>
+        <item>Bilinear</item>
+        <item>Bicubic</item>
+        <item>Lanczos</item>
+    </string-array>
+
+    <string-array name="filter_mode_values">
+        <item>nearest</item>
+        <item>bilinear</item>
+        <item>bicubic</item>
+        <item>lanczos</item>
+    </string-array>
+
+    <string-array name="cd_speed_modes">
+        <item>Normal (1x)</item>
+        <item>Fast (2x)</item>
+        <item>Faster (4x)</item>
+        <item>Fastest (8x)</item>
+        <item>Async (Async)</item>
+    </string-array>
+
+    <string-array name="cd_speed_values">
+        <item>1</item>
+        <item>2</item>
+        <item>4</item>
+        <item>8</item>
+        <item>async</item>
+    </string-array>
+
+    <integer-array name="default_video_mode_index">
+        <item>0</item>
+    </integer-array>
+
+    <integer-array name="default_audio_interpolation_index">
+        <item>1</item>
+    </integer-array>
+
+    <integer-array name="default_controller_type_index">
+        <item>1</item>
+    </integer-array>
+
+    <integer-array name="default_memory_card_size_index">
+        <item>0</item>
+    </integer-array>
+
+    <integer-array name="default_cpu_interpreter_index">
+        <item>0</item>
+    </integer-array>
+
+    <integer-array name="default_gpu_renderer_index">
+        <item>0</item>
+    </integer-array>
+
+    <integer-array name="default_filter_mode_index">
+        <item>1</item>
+    </integer-array>
+
+    <integer-array name="default_cd_speed_index">
+        <item>0</item>
+    </integer-array>
+
+    <integer-array name="default_bios_region_index">
+        <item>0</item>
+    </integer-array>
+
+    <integer-array name="default_save_state_slot_index">
+        <item>0</item>
+    </integer-array>
+
+    <integer-array name="recent_files_max_count">
+        <item>10</item>
+    </integer-array>
+
+    <integer-array name="recent_bios_max_count">
+        <item>5</item>
+    </integer-array>
+
+    <integer-array name="save_state_thumbnail_size">
+        <item>320</item>
+        <item>240</item>
+    </integer-array>
+
+    <integer-array name="save_state_compression_level">
+        <item>6</item>
+    </integer-array>
+
+    <string-array name="audio_buffer_names">
+        <item>128 samples</item>
+        <item>256 samples</item>
+        <item>512 samples</item>
+        <item>1024 samples</item>
+    </string-array>
+
+    <string-array name="audio_buffer_values">
+        <item>128</item>
+        <item>256</item>
+        <item>512</item>
+        <item>1024</item>
+    </string-array>
+
+    <string-array name="fast_forward_names">
+        <item>2x</item>
+        <item>4x</item>
+        <item>8x</item>
+        <item>16x</item>
+        <item>Maximum</item>
+    </string-array>
+
+    <string-array name="fast_forward_values">
+        <item>2</item>
+        <item>4</item>
+        <item>8</item>
+        <item>16</item>
+        <item>32</item>
+    </string-array>
+
+    <string-array name="rewind_depth_names">
+        <item>10 seconds</item>
+        <item>30 seconds</item>
+        <item>60 seconds</item>
+    </string-array>
+
+    <string-array name="rewind_depth_values">
+        <item>10</item>
+        <item>30</item>
+        <item>60</item>
+    </string-array>
+
+    <string-array name="slow_motion_names">
+        <item>Half Speed (0.5x)</item>
+        <item>Third Speed (0.33x)</item>
+        <item>Quarter Speed (0.25x)</item>
+    </string-array>
+
+    <string-array name="slow_motion_values">
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+    </string-array>
+</resources>

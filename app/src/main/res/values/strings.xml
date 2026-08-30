@@ -1,0 +1,113 @@
+<resources>
+    <string name="app_name">PS1 Emulator</string>
+
+    <string name="enable_joystick_title">Enable Joystick</string>
+    <string name="enable_joystick_summary">Replace the D-pad with an analog stick in both landscape and portrait</string>
+    <string name="empty_state_icon_desc">Gamepad icon</string>
+    <string name="empty_state_title">No games yet</string>
+    <string name="empty_state_subtitle">Tap + to import your first game</string>
+    <string name="unsupported_file_title">Unsupported File</string>
+    <string name="unsupported_file_message">\"%1$s\" is not a supported ROM file.\n\nSupported file types:\n%2$s</string>
+    <string name="supported_formats_title">Supported ROM Formats</string>
+    <string name="supported_formats_message">Disc images:\n  .bin, .cue, .img, .iso\n\nCompressed:\n  .chd, .mdf, .pbp, .toc, .cbn\n\nPlaylists &amp; executables:\n  .m3u, .exe\n\nArchives:\n  .zip, .7z</string>
+    <string name="supported_formats_subtitle">PS1 game files in these formats can be imported and played</string>
+    <string name="format_category_disc">Disc Images</string>
+    <string name="format_category_compressed">Compressed</string>
+    <string name="format_category_playlists">Playlists &amp; Executables</string>
+    <string name="format_category_archives">Archives</string>
+    <string name="format_category_disc_desc">Standard PlayStation disc rips</string>
+    <string name="format_category_compressed_desc">Space-efficient compressed formats</string>
+    <string name="format_category_playlists_desc">Multi-disc playlists and homebrew</string>
+    <string name="format_category_archives_desc">Compressed archives (auto-extracted)</string>
+
+    <!-- Disclaimer screen -->
+    <string name="disclaimer_title">Terms &amp; Conditions</string>
+    <string name="disclaimer_subtitle">Please review and accept to continue</string>
+    <string name="disclaimer_accept">I Agree</string>
+    <string name="disclaimer_reject">I Do Not Agree</string>
+    <string name="disclaimer_heading">LEGAL DISCLAIMER</string>
+    <string name="disclaimer_intro">By using this application, you acknowledge and agree that:</string>
+    <string name="disclaimer_clause_1_title">Hardware Ownership</string>
+    <string name="disclaimer_clause_1">You must own the original hardware (PlayStation console) from which any BIOS file used with this app was obtained.</string>
+    <string name="disclaimer_clause_2_title">Game Ownership</string>
+    <string name="disclaimer_clause_2">You must own the original game discs for any ROM files you choose to play with this app.</string>
+    <string name="disclaimer_clause_3_title">No Bundled Content</string>
+    <string name="disclaimer_clause_3">No copyrighted BIOS files, game ROMs, or other copyrighted materials are provided or bundled with this application.</string>
+    <string name="disclaimer_clause_4_title">Intended Use</string>
+    <string name="disclaimer_clause_4">This application is intended solely for playing legally-owned backup copies of your games and homebrew software.</string>
+    <string name="disclaimer_clause_5_title">Legal Compliance</string>
+    <string name="disclaimer_clause_5">You are responsible for complying with all applicable laws in your jurisdiction regarding the use of emulation software.</string>
+    <string name="disclaimer_footer">If you do not agree with these terms, please close this application.</string>
+
+    <!-- BIOS Setup screen -->
+    <string name="bios_setup_title">BIOS Setup</string>
+    <string name="bios_setup_subtitle">Required for emulation</string>
+    <string name="bios_setup_description">A PlayStation BIOS file is required to run games. The BIOS can be dumped from a PlayStation console you own.</string>
+    <string name="bios_setup_select">Select BIOS File</string>
+    <string name="bios_setup_skip">Skip for Now</string>
+    <string name="bios_setup_skip_hint">You can add a BIOS later from Settings</string>
+    <string name="bios_setup_validating">Validating BIOS…</string>
+    <string name="bios_setup_valid_title">BIOS Verified</string>
+    <string name="bios_setup_valid_message">Your PlayStation BIOS has been verified successfully.</string>
+    <string name="bios_setup_invalid_title">Invalid BIOS</string>
+    <string name="bios_setup_invalid_message">The selected file does not appear to be a valid PlayStation BIOS. Please select a 512 KB BIOS dump from a console you own.</string>
+    <string name="bios_setup_invalid_status">Invalid BIOS file selected.</string>
+    <string name="bios_setup_continue">Continue</string>
+    <string name="bios_setup_try_again">Try Again</string>
+
+    <!-- BIOS settings -->
+    <string name="bios_settings_imported">BIOS imported successfully</string>
+    <string name="bios_settings_not_imported">No BIOS imported</string>
+    <string name="bios_settings_import_success">BIOS verified and imported successfully.</string>
+    <string name="bios_settings_import_invalid">The selected file is not a valid PlayStation BIOS. Please select a 512 KB BIOS dump.</string>
+
+    <!-- Game context menu -->
+    <string name="context_menu_title">Game Options</string>
+    <string name="context_menu_export_saves">Export Save Files</string>
+    <string name="context_menu_export_desc">Battery saves and save states</string>
+    <string name="context_menu_import_saves">Import Save Files</string>
+    <string name="context_menu_import_desc">Battery saves and save states</string>
+    <string name="context_menu_manage_saves">Manage Save States</string>
+    <string name="context_menu_manage_desc">View and load save states</string>
+    <string name="context_menu_remove_game">Remove Game</string>
+    <string name="context_menu_remove_desc">Remove from library</string>
+
+    <!-- Export/Import -->
+    <string name="export_progress">Exporting save files…</string>
+    <string name="export_success">%d file(s) exported successfully</string>
+    <string name="export_no_saves">No save files found for this game</string>
+    <string name="export_failed">Export failed</string>
+    <string name="import_progress">Importing save files…</string>
+    <string name="import_success">%d file(s) imported successfully</string>
+    <string name="import_failed">Import failed</string>
+    <string name="import_invalid_card">Invalid memory card file size</string>
+    <string name="import_skipped">Skipped unsupported file: %s</string>
+
+    <!-- Remove game -->
+    <string name="remove_game_title">Remove \"%s\"?</string>
+    <string name="remove_game_message">This will remove the game from your library and delete all associated save files.</string>
+    <string name="remove_game_confirm">Remove</string>
+    <string name="remove_game_success">\"%s\" removed from library</string>
+
+    <!-- Manage save states -->
+    <string name="manage_saves_title">Save States — %s</string>
+    <string name="manage_saves_load_hint">Launch the game and use Load State to load this slot</string>
+    <string name="manage_saves_empty">No save states found</string>
+
+    <!-- Licenses / open source screen -->
+    <string name="licenses_title">Licenses</string>
+    <string name="licenses_load_error">Unable to load license information.</string>
+    <string name="licenses_expand">Expand</string>
+    <string name="licenses_app_header_title">PS1 Emulator for Android</string>
+
+    <!-- Attribution label for the emulation foreground service (API 30+) -->
+    <string name="attribution_emulator_audio">Emulation audio and video</string>
+
+    <!-- More Apps section -->
+    <string name="more_apps_title">More Apps</string>
+    <string name="more_apps_see_all">See All</string>
+    <string name="more_apps_install">Install</string>
+    <string name="more_apps_icon_desc">App icon</string>
+    <string name="more_apps_gba_name">GBA Emulator</string>
+    <string name="more_apps_gba_description">Game Boy Advance emulator for Android</string>
+</resources>

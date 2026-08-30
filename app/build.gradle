@@ -1,0 +1,118 @@
+plugins {
+    alias(libs.plugins.android.application)
+}
+
+android {
+    namespace 'com.tansoft.ps1emulator'
+    compileSdk {
+        version = release(36)
+    }
+
+    defaultConfig {
+        applicationId "com.tansoft.ps1emulator"
+        minSdk 24
+        targetSdk 36
+        versionCode 6
+        versionName "1.0.5"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        ndk {
+            // Ship a native symbol table with the bundle. Without it Play Console
+            // can only resolve exported symbols, so a native crash is attributed
+            // to the nearest exported function instead of the one that faulted —
+            // which is what made the createOboeStream SIGSEGV report so thin.
+            debugSymbolLevel 'SYMBOL_TABLE'
+        }
+        externalNativeBuild {
+            cmake {
+                cppFlags '-std=c++17'
+                arguments '-DANDROID_STL=c++_shared'
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            // The PS1 core is unplayable when compiled at -O0 (AGP's default for
+            // debug). Force an optimized native build so debug APKs run at full
+            // speed; Java/Kotlin is still debuggable.
+            externalNativeBuild {
+                cmake {
+                    arguments '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
+                }
+            }
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            externalNativeBuild {
+                cmake {
+                    arguments '-DCMAKE_BUILD_TYPE=Release'
+                }
+            }
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.22.1'
+        }
+    }
+    buildFeatures {
+        viewBinding true
+        buildConfig true
+        prefab true
+    }
+    testOptions {
+        unitTests.includeAndroidResources = true
+    }
+}
+
+dependencies {
+    implementation libs.appcompat
+    implementation libs.material
+    implementation libs.core
+    implementation libs.activity
+    implementation libs.fragment
+    implementation libs.constraintlayout
+
+    // Room (for game library metadata)
+    implementation libs.room.runtime
+    annotationProcessor libs.room.compiler
+
+    // RecyclerView + ViewPager2
+    implementation libs.recyclerview
+    implementation libs.viewpager2
+
+    // Preferences (for Settings screen)
+    implementation libs.preference
+
+    // Archive extraction (for .7z support)
+    implementation libs.commons.compress
+    implementation libs.xz
+
+    // Lifecycle (for service management)
+    implementation libs.lifecycle.service
+    implementation libs.lifecycle.extensions
+
+    // Oboe (native audio)
+    implementation 'com.google.oboe:oboe:1.10.0'
+
+    // Glide (image loading)
+    implementation libs.glide
+
+    // DocumentFile (for SAF export/import)
+    implementation libs.documentfile
+
+    // Testing
+    testImplementation libs.junit
+    testImplementation libs.mockito.core
+    testImplementation libs.robolectric
+    testImplementation libs.androidx.test.core
+    androidTestImplementation libs.ext.junit
+    androidTestImplementation libs.espresso.core
+}

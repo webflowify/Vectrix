@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Required from API 33 to show the foreground-service notification. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Declares the tag EmulatorService passes to createAttributionContext()
+         on API 30+. Without this declaration AppOps logs
+         "attributionTag not declared in manifest". Ignored on API < 30. -->
+    <attribution
+        android:tag="EmulatorServiceAudio"
+        android:label="@string/attribution_emulator_audio" />
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.PS1Emulator">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ui.emulation.EmulationActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.PS1Emulator"
+            android:hardwareAccelerated="true" />
+
+        <activity
+            android:name=".ui.onboarding.DisclaimerActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.onboarding.BiosImportActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.library.LibraryActivity"
+            android:exported="false" />
+
+        <service
+            android:name=".core.EmulatorService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <!-- Required for the "specialUse" FGS type from API 34 onward.
+                 Without this property the system refuses to start the service,
+                 which on modern Android surfaces as a start-not-allowed failure. -->
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Running the PS1 emulation core and audio while the game screen is open" />
+        </service>
+
+        <activity
+            android:name=".ui.savestate.SaveStateActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.settings.SettingsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.settings.ControllerMappingActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.library.MoreAppsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.about.LicensesActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.settings.SettingsActivity" />
+    </application>
+
+</manifest>

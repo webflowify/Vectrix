@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="8dp"
+    android:background="@drawable/bg_emulation_menu">
+
+    <TextView
+        android:id="@+id/itemPause"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="Pause"
+        android:textColor="@color/md_on_surface"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:background="?attr/selectableItemBackground" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:background="?android:attr/listDivider" />
+
+    <TextView
+        android:id="@+id/itemSaveState"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="Save State"
+        android:textColor="@color/md_on_surface"
+        android:textSize="16sp"
+        android:background="?attr/selectableItemBackground" />
+
+    <TextView
+        android:id="@+id/itemLoadState"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="Load State"
+        android:textColor="@color/md_on_surface"
+        android:textSize="16sp"
+        android:background="?attr/selectableItemBackground" />
+
+    <TextView
+        android:id="@+id/itemFastForward"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="Fast Forward (OFF)"
+        android:textColor="@color/md_on_surface"
+        android:textSize="16sp"
+        android:background="?attr/selectableItemBackground" />
+
+    <TextView
+        android:id="@+id/itemSlowMotion"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="Slow Motion (OFF)"
+        android:textColor="@color/md_on_surface"
+        android:textSize="16sp"
+        android:background="?attr/selectableItemBackground" />
+
+    <TextView
+        android:id="@+id/itemRewind"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="Rewind (0)"
+        android:textColor="@color/neon_pink"
+        android:textSize="16sp"
+        android:background="?attr/selectableItemBackground" />
+
+    <TextView
+        android:id="@+id/itemSettings"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="Settings"
+        android:textColor="@color/md_on_surface"
+        android:textSize="16sp"
+        android:background="?attr/selectableItemBackground" />
+
+    <TextView
+        android:id="@+id/itemExit"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="Exit Emulation"
+        android:textColor="@color/md_error"
+        android:textSize="16sp"
+        android:background="?attr/selectableItemBackground" />
+
+</LinearLayout>

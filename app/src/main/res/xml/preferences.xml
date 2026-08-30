@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <PreferenceCategory android:title="BIOS">
+        <Preference
+            android:key="import_bios"
+            android:title="Import BIOS File"
+            android:summary="Select a PlayStation BIOS file from your device" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Display">
+        <SwitchPreferenceCompat
+            android:key="auto_rotate"
+            android:title="Auto-Rotate"
+            android:summary="Allow landscape orientation when device is rotated"
+            android:defaultValue="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Video">
+        <SwitchPreferenceCompat
+            android:key="show_fps"
+            android:title="Show FPS Counter"
+            android:defaultValue="false" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Audio">
+        <SwitchPreferenceCompat
+            android:key="audio_enabled"
+            android:title="Audio Enabled"
+            android:defaultValue="true" />
+        <ListPreference
+            android:key="audio_buffer_size"
+            android:title="Audio Buffer Size"
+            android:entries="@array/audio_buffer_names"
+            android:entryValues="@array/audio_buffer_values"
+            android:defaultValue="256" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Controls">
+        <SwitchPreferenceCompat
+            android:key="vpad_visible"
+            android:title="Show On-Screen Controls"
+            android:defaultValue="true" />
+        <SeekBarPreference
+            android:key="vpad_opacity"
+            android:title="Control Opacity"
+            android:defaultValue="70"
+            android:min="10"
+            android:max="100" />
+        <SwitchPreferenceCompat
+            android:key="enable_joystick"
+            android:title="@string/enable_joystick_title"
+            android:summary="@string/enable_joystick_summary"
+            android:defaultValue="false" />
+        <Preference
+            android:key="controller_mapping"
+            android:title="Physical Controller Mapping"
+            android:summary="Customize button mappings for connected controllers">
+            <intent android:action="android.intent.action.VIEW"
+                android:targetPackage="com.tansoft.ps1emulator"
+                android:targetClass="com.tansoft.ps1emulator.ui.settings.ControllerMappingActivity" />
+        </Preference>
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Performance">
+        <ListPreference
+            android:key="fast_forward_speed"
+            android:title="Fast-Forward Speed"
+            android:entries="@array/fast_forward_names"
+            android:entryValues="@array/fast_forward_values"
+            android:defaultValue="2" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Slow Motion">
+        <ListPreference
+            android:key="slow_motion_speed"
+            android:title="Slow Motion Speed"
+            android:entries="@array/slow_motion_names"
+            android:entryValues="@array/slow_motion_values"
+            android:defaultValue="2" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Rewind">
+        <ListPreference
+            android:key="rewind_depth"
+            android:title="Rewind Depth"
+            android:summary="How far back you can rewind"
+            android:entries="@array/rewind_depth_names"
+            android:entryValues="@array/rewind_depth_values"
+            android:defaultValue="10" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Legal">
+        <Preference
+            android:key="privacy_policy"
+            android:title="Privacy Policy"
+            android:summary="View our privacy policy" />
+        <Preference
+            android:key="open_source_licenses"
+            android:title="Licenses"
+            android:summary="View Licenses" />
+    </PreferenceCategory>
+
+</PreferenceScreen>

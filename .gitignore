@@ -1,0 +1,37 @@
+# Built application files
+*.apk
+*.aar
+*.ap_
+*.aab
+
+# Java / class files
+*.class
+
+# Generated / build outputs
+bin/
+gen/
+out/
+.gradle/
+build/
+app/build/
+release/
+captures/
+
+# Local configuration — SDK/NDK paths and signing keys. NEVER commit these.
+local.properties
+signing.properties
+*.keystore
+*.jks
+
+# IDE / OS / native build
+*.iml
+.idea/
+.DS_Store
+.externalNativeBuild/
+.cxx/
+
+# Native build outputs
+*.so
+
+# Logs / temp
+*.log
