@@ -219,9 +219,14 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm|aarch64")
             TEXTURE_CACHE_8BPP
         )
     else()
+        # NDRC_THREAD (threaded block compilation) is NOT enabled on arm32 either.
+        # The same race that crashes aarch64 (compile thread reuses a code-cache
+        # page while the emulation thread is still patching links into it) exists
+        # on arm32.  Upstream still calls it "experimental".  Single-threaded
+        # compilation is the long-standing, well-tested path; the performance
+        # difference is negligible on modern ARM cores.
         set(ARM_DEFINITIONS
             HAVE_ARI64
-            NDRC_THREAD
             GPU_NEON
             NEON_BUILD
             SIMD_BUILD

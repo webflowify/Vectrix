@@ -316,6 +316,11 @@ public final class ArchiveExtractor {
         } catch (IOException e) {
             deleteDir(cacheDir);
             throw e;
+        } catch (RuntimeException e) {
+            // Defensive: any RuntimeException from extraction (e.g. from
+            // Apache Commons Compress or ContentResolver) must not crash the app.
+            deleteDir(cacheDir);
+            throw new IOException("Extraction failed: " + e.getMessage(), e);
         }
 
         new File(cacheDir, CACHE_INDEX_FILE).createNewFile();
@@ -622,19 +627,31 @@ public final class ArchiveExtractor {
     private static File copyToTempFile(Context context, Uri uri) throws IOException {
         File tmpDir = getTempDirectory(context);
         File tmp = File.createTempFile("archive_", ".tmp", tmpDir);
-        try (InputStream in = context.getContentResolver().openInputStream(uri);
-             OutputStream out = new FileOutputStream(tmp)) {
-            if (in == null) throw new IOException("Cannot open input stream for " + uri);
-            byte[] buffer = new byte[65536];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
+        try {
+            InputStream in = context.getContentResolver().openInputStream(uri);
+            if (in == null) {
+                tmp.delete();
+                throw new IOException("Cannot open input stream for " + uri);
             }
-        } catch (IOException | RuntimeException e) {
-            // The temp file may have been partially written; clean it up so a
-            // failed extraction does not leak files on already-tight storage.
+            try (OutputStream out = new FileOutputStream(tmp)) {
+                byte[] buffer = new byte[65536];
+                int read;
+                while ((read = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, read);
+                }
+            } finally {
+                in.close();
+            }
+        } catch (IOException e) {
             tmp.delete();
             throw e;
+        } catch (RuntimeException e) {
+            // ContentResolver.openInputStream can throw IllegalStateException
+            // (e.g. when the URI is no longer accessible or the provider errors).
+            // Wrap it in an IOException so the entire call chain can handle it
+            // uniformly instead of crashing with an uncaught RuntimeException.
+            tmp.delete();
+            throw new IOException("Failed to open archive: " + e.getMessage(), e);
         }
         return tmp;
     }

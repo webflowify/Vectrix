@@ -40,7 +40,7 @@ static constexpr size_t REWIND_SNAPSHOT_RAW_SIZE =
 
 // --- Rewind Buffer -----------------------------------------------------------
 // Pre-allocated ring buffer of raw (uncompressed) emulator state snapshots.
-// Capture is a cheap memcpy into a pre-allocated slot — no malloc, no compress.
+// Capture is a cheap memcpy into a pre-allocated slot â€” no malloc, no compress.
 // This keeps the hot path fast enough to not impact frame pacing.
 //
 // Memory: each slot is ~4.2MB raw. With 20 slots = ~84MB total.
@@ -101,7 +101,7 @@ public:
 
     // Get a pointer to the next writable slot (no copy yet).
     // Caller fills it, then calls commit() to advance the ring.
-    // This avoids a separate memcpy — capture writes directly into the slot.
+    // This avoids a separate memcpy â€” capture writes directly into the slot.
     uint8_t* nextSlot() {
         if (!initialized_) return nullptr;
         return slots_[head_ % maxSnapshots_].data;
@@ -112,7 +112,8 @@ public:
         if (!initialized_) return;
         slots_[head_ % maxSnapshots_].valid = true;
         head_ = (head_ + 1) % maxSnapshots_;
-        if (count_ < maxSnapshots_) count_++;
+        if (count_.load(std::memory_order_relaxed) < maxSnapshots_)
+            count_.store(count_.load(std::memory_order_relaxed) + 1, std::memory_order_relaxed);
     }
 
     // Get a pointer to the most recent valid slot (for pop/peek).
@@ -125,11 +126,11 @@ public:
 
     // Pop: invalidate the most recent slot and move head back.
     void pop() {
-        if (!initialized_ || count_ == 0) return;
+        if (!initialized_ || count_.load(std::memory_order_relaxed) == 0) return;
         int idx = (head_ - 1 + maxSnapshots_) % maxSnapshots_;
         slots_[idx].valid = false;
         head_ = idx;
-        count_--;
+        count_.store(count_.load(std::memory_order_relaxed) - 1, std::memory_order_relaxed);
     }
 
     void clear() {
@@ -138,13 +139,13 @@ public:
             slots_[i].valid = false;
         }
         head_ = 0;
-        count_ = 0;
+        count_.store(0, std::memory_order_relaxed);
     }
 
-    int count() const { return count_; }
+    int count() const { return count_.load(std::memory_order_relaxed); }
     int capacity() const { return maxSnapshots_; }
-    bool empty() const { return count_ == 0; }
-    bool full() const { return count_ >= maxSnapshots_; }
+    bool empty() const { return count_.load(std::memory_order_relaxed) == 0; }
+    bool full() const { return count_.load(std::memory_order_relaxed) >= maxSnapshots_; }
 
 private:
     void deinit_locked() {
@@ -160,7 +161,7 @@ private:
         slots_ = nullptr;
         maxSnapshots_ = 0;
         head_ = 0;
-        count_ = 0;
+        count_.store(0, std::memory_order_relaxed);
         initialized_ = false;
         LOGI("RewindBuffer: deinitialized");
     }
@@ -174,7 +175,7 @@ private:
     RewindSlot* slots_ = nullptr;
     int maxSnapshots_ = 0;
     int head_ = 0;
-    int count_ = 0;
+    std::atomic<int> count_{0};
     bool initialized_ = false;
 };
 

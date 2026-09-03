@@ -67,6 +67,13 @@ extern "C" {
 #include "freeze_helpers.h"
 #include "rewind_buffer.h"
 
+// Safe wrapper: psxCpu may be null if retro_init() failed or core was deinitialized.
+static inline void safeCpuNotify(int type, void *param) {
+    if (psxCpu && psxCpu->Notify) {
+        psxCpu->Notify(static_cast<R3000Anote>(type), param);
+    }
+}
+
 // --- Libretro function declarations (defined in core/frontend/libretro.c) -------
 extern void retro_init(void);
 extern void retro_deinit(void);
@@ -85,7 +92,7 @@ extern void retro_set_input_state(retro_input_state_t cb);
 // --- Libretro callback state ---------------------------------------------------
 
 // PS1 maximum output geometry (see docs.libretro.com/library/pcsx_rearmed:
-// max width 1024, max height 512). The framebuffer must be able to hold it —
+// max width 1024, max height 512). The framebuffer must be able to hold it ï¿½
 // clamping to 320x240 crops hi-res modes such as 512x240 and 640x480 instead of
 // scaling them.
 static const unsigned FB_MAX_WIDTH  = 1024;
@@ -115,8 +122,9 @@ std::atomic<int> sSlowMotionDivisor{1};
 
 // Rewind state
 static std::atomic<bool> sRewindEnabled{false};
-static int sRewindInterval = 20;     // frames between snapshots (set by depth)
-static int sRewindFrameCounter = 0;  // counts frames since last snapshot
+static std::atomic<bool> sRewindClearPending{false};  // deferred clear request from UI thread
+static std::atomic<int> sRewindInterval{20};     // frames between snapshots (set by depth)
+static std::atomic<int> sRewindFrameCounter{0};  // counts frames since last snapshot
 
 static char sBiosDir[512] = {0};
 static char sSaveDir[512] = {0};
@@ -126,7 +134,7 @@ static char sSaveDir[512] = {0};
 // For most options libretro.c uses the pattern
 //     if (environ_cb(GET_VARIABLE, &var) && var.value) { ...apply... }
 // with no else branch, so anything we fail to answer silently keeps the
-// zero-initialised default — which for `thread_rendering` means "off". Answering
+// zero-initialised default ï¿½ which for `thread_rendering` means "off". Answering
 // these explicitly is what enables the core's threading, and is the single
 // largest performance win available to the frontend.
 //
@@ -245,13 +253,13 @@ static const int32_t kAudioChannels = 2;
 
 // Buffer size requested from Java. Written by nativeSetAudioBufferSize() (UI
 // thread), read by the emulation thread, which is the only thread that opens or
-// closes the audio stream — see applyPendingAudioConfig().
+// closes the audio stream ï¿½ see applyPendingAudioConfig().
 static std::atomic<int32_t> gRequestedBufferFrames{512};
 
 // Buffer size the live stream was opened with. Emulation thread only.
 static int32_t sCurrentBufferFrames = 0;
 
-// Audio mute control — checked in the Oboe callback.
+// Audio mute control ï¿½ checked in the Oboe callback.
 // Set from Java via nativeSetAudioEnabled().
 std::atomic<bool> gAudioEnabled{true};
 
@@ -285,7 +293,8 @@ static void applyPendingAudioConfig() {
 // --- Libretro callbacks --------------------------------------------------------
 
 static void our_video_refresh(const void *data, unsigned width, unsigned height, size_t pitch) {
-    if (!data) return;
+    if (!data || width == 0 || height == 0 || pitch == 0) return;
+    if (width > 4096 || height > 2048) return; // sanity-limit absurd geometries
     unsigned clipW = (width > 1024) ? 1024 : width;
     unsigned clipH = (height > 512) ? 512 : height;
     sFbWidth = clipW;
@@ -496,9 +505,11 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeInit(
         jstring card1Path,
         jstring card2Path) {
     ATRACE_FN();
+    env->PushLocalFrame(16);
 
     if (sInitialized) {
         LOGW("nativeInit: already initialized, returning 0");
+        env->PopLocalFrame(nullptr);
         return 0;
     }
 
@@ -562,7 +573,7 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeInit(
     // Initialize audio. audioStreamOpen() clears and prefills the ring buffer.
     sCurrentBufferFrames = gRequestedBufferFrames.load(std::memory_order_relaxed);
     if (!audioStreamOpen(kAudioSampleRate, kAudioChannels, sCurrentBufferFrames)) {
-        LOGE("Failed to create Oboe stream — continuing without audio");
+        LOGE("Failed to create Oboe stream ï¿½ continuing without audio");
     }
 
     sInputButtons = 0;
@@ -582,10 +593,11 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeInit(
 
     sInitialized = true;
 
-    // Initialize rewind buffer (30 snapshots × ~4.2MB = ~126MB)
+    // Initialize rewind buffer (30 snapshots ~ ~4.2MB = ~126MB)
     gRewindBuffer.init(30);
 
     LOGI("nativeInit complete");
+    env->PopLocalFrame(nullptr);
     return 0;
 }
 
@@ -597,15 +609,18 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeLoadGame(
         jclass /* clazz */,
         jstring romPath) {
     ATRACE_FN();
+    env->PushLocalFrame(8);
 
     if (!sInitialized) {
         LOGE("nativeLoadGame: core not initialized");
+        env->PopLocalFrame(nullptr);
         return -2;
     }
 
     const char* path = env->GetStringUTFChars(romPath, nullptr);
     if (!path) {
         LOGE("nativeLoadGame: romPath is null");
+        env->PopLocalFrame(nullptr);
         return -3;
     }
 
@@ -620,11 +635,13 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeLoadGame(
 
     if (!result) {
         LOGE("nativeLoadGame: retro_load_game failed");
+        env->PopLocalFrame(nullptr);
         return -1;
     }
 
     sGameLoaded = true;
     LOGI("nativeLoadGame: game loaded successfully");
+    env->PopLocalFrame(nullptr);
     return 0;
 }
 
@@ -675,7 +692,7 @@ static void load_extra_state_from_buffer(const uint8_t *buf, uint32_t total_size
     size_t pos = 0;
 
     // Each FREEZE_LOAD_SECTION reads [size(4)][data] and calls freeze_func(f, 0)
-    // If a section is missing or corrupted, we break out — degraded but functional
+    // If a section is missing or corrupted, we break out ï¿½ degraded but functional
     FREEZE_LOAD_SECTION(buf, pos, total_size, sioFreeze);
     FREEZE_LOAD_SECTION(buf, pos, total_size, cdrFreeze);
     FREEZE_LOAD_SECTION(buf, pos, total_size, psxRcntFreeze);
@@ -692,16 +709,18 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeSaveState(
         jclass /* clazz */,
         jstring jPath) {
     ATRACE_FN();
+    env->PushLocalFrame(8);
     if (!sInitialized) {
         LOGE("nativeSaveState: not initialized");
+        env->PopLocalFrame(nullptr);
         return -2;
     }
     const char* path = env->GetStringUTFChars(jPath, nullptr);
-    if (!path) return -3;
+    if (!path) { env->PopLocalFrame(nullptr); return -3; }
 
     LOGI("nativeSaveState: saving to '%s'", path);
 
-    // CoreState is ~4MB, too large for the stack — allocate on heap
+    // CoreState is ~4MB, too large for the stack ï¿½ allocate on heap
     CoreState* statePtr = new (std::nothrow) CoreState;
     if (!statePtr) {
         LOGE("nativeSaveState: failed to allocate CoreState");
@@ -712,7 +731,7 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeSaveState(
     memset(&state, 0, sizeof(state));
 
     // Notify CPU core to sync cached state with psxRegs (needed for dynarec)
-    psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
+    safeCpuNotify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 
     // CPU: GPRs (r0..r31), PC, LO, HI
     memcpy(state.regs, psxRegs.GPR.r, sizeof(state.regs));
@@ -740,11 +759,11 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeSaveState(
         memcpy(state.gpu_vram, vramPtr, GPU_VRAM_SIZE);
     }
 
-    // v4: Coprocessor 2 (GTE) — geometry transform engine registers
+    // v4: Coprocessor 2 (GTE) ï¿½ geometry transform engine registers
     memcpy(state.cp2_data, psxRegs.CP2.CP2D.r, sizeof(state.cp2_data));
     memcpy(state.cp2_ctrl, psxRegs.CP2.CP2C.r, sizeof(state.cp2_ctrl));
 
-    // v4: CPU timing state — cycle counter, interrupts, event scheduling
+    // v4: CPU timing state ï¿½ cycle counter, interrupts, event scheduling
     state.cpu_code           = psxRegs.code;
     state.cpu_cycle          = psxRegs.cycle;
     state.cpu_interrupt      = psxRegs.interrupt;
@@ -774,7 +793,7 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeSaveState(
         }
     }
 
-    // SPU: placeholder — plugin handles its own freeze via SPU_freeze in full save path
+    // SPU: placeholder ï¿½ plugin handles its own freeze via SPU_freeze in full save path
     memset(state.spu_regs, 0, sizeof(state.spu_regs));
 
     // CD-ROM
@@ -820,6 +839,7 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeSaveState(
 
     delete statePtr;
     env->ReleaseStringUTFChars(jPath, path);
+    env->PopLocalFrame(nullptr);
     return (result == 0) ? 0 : -1;
 }
 
@@ -829,16 +849,18 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeLoadState(
         jclass /* clazz */,
         jstring jPath) {
     ATRACE_FN();
+    env->PushLocalFrame(8);
     if (!sInitialized) {
         LOGE("nativeLoadState: not initialized");
+        env->PopLocalFrame(nullptr);
         return -2;
     }
     const char* path = env->GetStringUTFChars(jPath, nullptr);
-    if (!path) return -3;
+    if (!path) { env->PopLocalFrame(nullptr); return -3; }
 
     LOGI("nativeLoadState: loading from '%s'", path);
 
-    // CoreState is ~4MB, too large for the stack — allocate on heap
+    // CoreState is ~4MB, too large for the stack ï¿½ allocate on heap
     CoreState* statePtr = new (std::nothrow) CoreState;
     if (!statePtr) {
         LOGE("nativeLoadState: failed to allocate CoreState");
@@ -895,7 +917,7 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeLoadState(
 
     if (result == 0) {
         // Notify CPU core to sync cached state before we overwrite psxRegs
-        psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
+        safeCpuNotify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 
         // CPU: GPRs, PC, LO, HI
         memcpy(psxRegs.GPR.r, state.regs, sizeof(state.regs));
@@ -941,7 +963,7 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeLoadState(
         gpu_post_load_sync();
         LOGI("nativeLoadState: post-load sync done (caches rebuilt, display forced)");
 
-        // v4: Restore Coprocessor 2 (GTE) registers — critical for 3D geometry
+        // v4: Restore Coprocessor 2 (GTE) registers ï¿½ critical for 3D geometry
         memcpy(psxRegs.CP2.CP2D.r, state.cp2_data, sizeof(state.cp2_data));
         memcpy(psxRegs.CP2.CP2C.r, state.cp2_ctrl, sizeof(state.cp2_ctrl));
 
@@ -993,7 +1015,7 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeLoadState(
         // These are all the freeze functions that the native PCSX LoadState calls
         // but were missing from our v4 save format.
         // The extra state includes ndrc_freeze which revalidates dynarec blocks
-        // from saved addresses — much faster than ndrc_clear_full() which wipes
+        // from saved addresses ï¿½ much faster than ndrc_clear_full() which wipes
         // everything and forces full recompilation from scratch.
         bool extra_loaded = false;
         if (extra_buf && extra_size > 0) {
@@ -1009,7 +1031,7 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeLoadState(
             // Note: this is slower than ndrc_freeze() because all blocks must
             // be recompiled from scratch on the first frame after load.
             ndrc_clear_full();
-            LOGI("nativeLoadState: no extra state — using ndrc_clear_full() fallback");
+            LOGI("nativeLoadState: no extra state ï¿½ using ndrc_clear_full() fallback");
         }
 
         // v4: Recalculate event_cycles from restored intCycle data
@@ -1025,7 +1047,7 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeLoadState(
         // executed (stale) block. _AFTER_LOAD triggers ari64_reset() which
         // invalidates every translated block, so they are safely recompiled
         // from the restored RAM instead of executing garbage.
-        psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
+        safeCpuNotify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 
         LOGI("nativeLoadState: state restored for game '%s'", state.game_id);
     } else {
@@ -1034,6 +1056,7 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeLoadState(
     free(screenshot);
     delete statePtr;
     env->ReleaseStringUTFChars(jPath, path);
+    env->PopLocalFrame(nullptr);
     return (result == 0) ? 0 : -1;
 }
 
@@ -1055,7 +1078,7 @@ static void captureRewindSnapshot() {
     uint8_t* extraData = slot + sizeof(CoreState) + 4;
 
     // Notify CPU core to sync cached state with psxRegs
-    psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
+    safeCpuNotify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 
     // CPU: GPRs, PC, LO, HI
     memcpy(state->regs, psxRegs.GPR.r, sizeof(state->regs));
@@ -1140,7 +1163,7 @@ static bool restoreRewindSnapshot() {
     const uint8_t* extraData = slot + sizeof(CoreState) + 4;
 
     // Notify CPU core to sync cached state before we overwrite psxRegs
-    psxCpu->Notify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
+    safeCpuNotify(R3000ACPU_NOTIFY_BEFORE_SAVE, NULL);
 
     // CPU: GPRs, PC, LO, HI
     memcpy(psxRegs.GPR.r, state->regs, sizeof(state->regs));
@@ -1220,15 +1243,15 @@ static bool restoreRewindSnapshot() {
     }
 
     events_restore();
-    // Notify CPU core that RAM/state was replaced.
-    // Use R3000ACPU_NOTIFY_AFTER_LOAD (not _AFTER_LOAD_STATE): the latter relies
-    // on ndrc_freeze() having already invalidated the ari64 translation cache,
-    // which is only valid if the cache has not wrapped since the snapshot was
-    // captured. Over a long session the translation cache wraps, leaving the
-    // saved block list pointing at overwritten generated code -> SIGSEGV in
-    // retro_run. _AFTER_LOAD runs ari64_reset() which invalidates all translated
-    // blocks so they are recompiled cleanly from the restored RAM.
-    psxCpu->Notify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
+        // Notify CPU core that RAM/state was replaced.
+        // Use R3000ACPU_NOTIFY_AFTER_LOAD (not _AFTER_LOAD_STATE): the latter relies
+        // on ndrc_freeze() having already invalidated the ari64 translation cache,
+        // which is only valid if the cache has not wrapped since the snapshot was
+        // captured. Over a long session the translation cache wraps, leaving the
+        // saved block list pointing at overwritten generated code -> SIGSEGV in
+        // retro_run. _AFTER_LOAD runs ari64_reset() which invalidates all translated
+        // blocks so they are recompiled cleanly from the restored RAM.
+        safeCpuNotify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 
     // Pop after successful restore
     gRewindBuffer.pop();
@@ -1248,8 +1271,9 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeSetRewindEnabled(
         jboolean enabled) {
     sRewindEnabled.store(enabled);
     if (!enabled) {
-        gRewindBuffer.clear();
-        sRewindFrameCounter = 0;
+        // Defer the clear to the emulation thread to avoid racing with
+        // captureRewindSnapshot()/restoreRewindSnapshot().
+        sRewindClearPending.store(true, std::memory_order_release);
     }
 }
 
@@ -1260,8 +1284,8 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeSetRewindInterval(
         jint frames) {
     if (frames < 1) frames = 1;
     if (frames > 300) frames = 300;
-    sRewindInterval = frames;
-    sRewindFrameCounter = 0;
+    sRewindInterval.store(frames, std::memory_order_relaxed);
+    sRewindFrameCounter.store(0, std::memory_order_relaxed);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
@@ -1386,7 +1410,7 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeShutdown(
 
     gRewindBuffer.deinit();
     // Closes the stream and clears the ring buffer. After this no stream exists
-    // until the emulation thread opens one in nativeInit() again — a settings
+    // until the emulation thread opens one in nativeInit() again ï¿½ a settings
     // change arriving now only updates gRequestedBufferFrames.
     audioStreamClose();
     sCurrentBufferFrames = 0;
@@ -1428,6 +1452,7 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeEmulateFrame(
         jobject framebufferBuffer,
         jobject audioBuffer) {
     ATRACE_FN();
+    env->PushLocalFrame(4);
 
     static bool prioritySet = false;
     if (!prioritySet) {
@@ -1437,11 +1462,13 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeEmulateFrame(
 
     if (!sInitialized) {
         LOGE("nativeEmulateFrame: core not initialized");
+        env->PopLocalFrame(nullptr);
         return 0;
     }
 
     if (!sGameLoaded) {
         LOGE("nativeEmulateFrame: no game loaded");
+        env->PopLocalFrame(nullptr);
         return 0;
     }
 
@@ -1466,6 +1493,12 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeEmulateFrame(
         }
     }
 
+    // Rewind: process deferred clear request from UI thread (safe here, no race)
+    if (sRewindClearPending.exchange(false, std::memory_order_acquire)) {
+        gRewindBuffer.clear();
+        sRewindFrameCounter = 0;
+    }
+
     // Rewind: capture snapshot at configured interval
     if (sRewindEnabled.load() && !sFastForwardEnabled.load()) {
         sRewindFrameCounter++;
@@ -1483,21 +1516,30 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeEmulateFrame(
 
     // The core duped this frame: nothing was drawn, so leave the previous image
     // on screen and skip both the buffer swap and the GL upload.
-    if (!sFbDirty) return 0;
+    if (!sFbDirty) { env->PopLocalFrame(nullptr); return 0; }
 
     auto* fb = static_cast<uint32_t*>(env->GetDirectBufferAddress(framebufferBuffer));
-    if (!fb) return 0;
+    if (!fb) { env->PopLocalFrame(nullptr); return 0; }
 
     unsigned w = (sFbWidth  > FB_MAX_WIDTH)  ? FB_MAX_WIDTH  : sFbWidth;
     unsigned h = (sFbHeight > FB_MAX_HEIGHT) ? FB_MAX_HEIGHT : sFbHeight;
-    if (w == 0 || h == 0) return 0;
+    if (w == 0 || h == 0) { env->PopLocalFrame(nullptr); return 0; }
 
-    // Straight copy — no colour conversion. The core already gave us XRGB8888;
+    // Validate the Java-side buffer is large enough for the copy
+    jlong fbCapacity = env->GetDirectBufferCapacity(framebufferBuffer);
+    if (fbCapacity < 0 || static_cast<size_t>(fbCapacity) < static_cast<size_t>(w) * h * sizeof(uint32_t)) {
+        LOGE("nativeEmulateFrame: framebuffer too small (%lld < %zu)", (long long)fbCapacity,
+             static_cast<size_t>(w) * h * sizeof(uint32_t));
+        env->PopLocalFrame(nullptr);
+        return 0;
+    }
+
+    // Straight copy â€” no colour conversion. The core already gave us XRGB8888;
     // the byte order difference against GL_RGBA is corrected for free by a
     // .bgra swizzle in the fragment shader.
     //
     // Rows are packed tightly at `w` (not at a fixed stride) because GLES 2.0
-    // has no GL_UNPACK_ROW_LENGTH — glTexSubImage2D can only read a tightly
+    // has no GL_UNPACK_ROW_LENGTH â€” glTexSubImage2D can only read a tightly
     // packed w*h block.
     {
         ScopedTrace _trace("Emulation: framebuffer copy");
@@ -1509,6 +1551,13 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeEmulateFrame(
                        sFramebuffer + static_cast<size_t>(y) * sFbWidth,
                        static_cast<size_t>(w) * sizeof(uint32_t));
             }
+        }
+    }
+
+    jint result = static_cast<jint>((w << 16) | h);
+    env->PopLocalFrame(nullptr);
+    return result;
+}
         }
     }
 

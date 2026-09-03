@@ -213,11 +213,17 @@ public final class RomImporter {
                     "Permission denied: " + e.getMessage());
         }
 
-        if (ArchiveExtractor.isArchiveUri(context, uri)) {
-            return importFromArchive(context, uri, listener, phaseCallback);
-        }
+        try {
+            if (ArchiveExtractor.isArchiveUri(context, uri)) {
+                return importFromArchive(context, uri, listener, phaseCallback);
+            }
 
-        return importDirectFile(context, uri);
+            return importDirectFile(context, uri);
+        } catch (Exception e) {
+            return ImportResult.extractionFailed(
+                    ArchiveExtractor.getDisplayNameOrUnknown(context, uri),
+                    "Import failed: " + e.getMessage());
+        }
     }
 
     // ── Archive import flow ──
@@ -246,6 +252,9 @@ public final class RomImporter {
                 return ImportResult.corrupted(archiveName);
             }
             return ImportResult.extractionFailed(archiveName, msg != null ? msg : "Unknown extraction error");
+        } catch (Exception e) {
+            return ImportResult.extractionFailed(archiveName,
+                    "Unexpected error during extraction: " + e.getMessage());
         }
 
         GameDiscoveryResult discovery;
@@ -627,6 +636,12 @@ public final class RomImporter {
             while ((bytesRead = is.read(buffer)) != -1) {
                 os.write(buffer, 0, bytesRead);
             }
+        } catch (IOException e) {
+            localFile.delete();
+            throw e;
+        } catch (RuntimeException e) {
+            localFile.delete();
+            throw new IOException("Failed to read file: " + e.getMessage(), e);
         }
 
         return localFile;
