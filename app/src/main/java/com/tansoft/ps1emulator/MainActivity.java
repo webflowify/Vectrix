@@ -22,6 +22,8 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.tansoft.ps1emulator.util.EdgeToEdgeHelper;
 
+import com.tansoft.ps1emulator.ads.AdManager;
+import com.tansoft.ps1emulator.ads.AppOpenAdManager;
 import com.tansoft.ps1emulator.ui.library.LibraryActivity;
 import com.tansoft.ps1emulator.ui.onboarding.DisclaimerActivity;
 
@@ -33,18 +35,25 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
         EdgeToEdgeHelper.enableEdgeToEdge(this);
 
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        AdManager.getInstance().incrementOpenCount();
 
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        final Intent nextIntent;
         if (!isDisclaimerAccepted(prefs)) {
-            startActivity(new Intent(this, DisclaimerActivity.class));
-            finish();
-            return;
+            nextIntent = new Intent(this, DisclaimerActivity.class);
+        } else {
+            nextIntent = new Intent(this, LibraryActivity.class);
         }
 
-        startActivity(new Intent(this, LibraryActivity.class));
-        finish();
+        AppOpenAdManager.getInstance().showWhenReady(this, () -> {
+            if (!isFinishing() && !isDestroyed()) {
+                startActivity(nextIntent);
+                finish();
+            }
+        });
     }
 
     private boolean isDisclaimerAccepted(SharedPreferences prefs) {

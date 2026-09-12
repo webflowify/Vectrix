@@ -15,6 +15,7 @@
 package com.tansoft.ps1emulator.ui.library;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -29,6 +30,8 @@ import com.tansoft.ps1emulator.data.GameEntity;
 
 public class GameContextMenuDialog extends BottomSheetDialogFragment {
 
+    private static final String TAG = "GameCtxMenuDialog";
+
     private static final String ARG_GAME_TITLE = "game_title";
     private static final String ARG_GAME_ID = "game_id";
     private static final String ARG_GAME_DISC_ID = "game_disc_id";
@@ -42,7 +45,12 @@ public class GameContextMenuDialog extends BottomSheetDialogFragment {
         void onRemoveGame(GameEntity game);
     }
 
+    public interface OnDismissOverlayListener {
+        void onOverlayDismissed();
+    }
+
     private OnMenuActionListener listener;
+    private OnDismissOverlayListener dismissListener;
     private GameEntity game;
 
     public static GameContextMenuDialog newInstance(GameEntity game) {
@@ -54,27 +62,55 @@ public class GameContextMenuDialog extends BottomSheetDialogFragment {
         args.putString(ARG_GAME_ROM_PATH, game.romPath);
         args.putString(ARG_GAME_THUMBNAIL_PATH, game.thumbnailPath);
         dialog.setArguments(args);
+        Log.d(TAG, "newInstance: game=" + game.title + " id=" + game.id);
         return dialog;
+    }
+
+    public void setOnDismissOverlayListener(OnDismissOverlayListener listener) {
+        this.dismissListener = listener;
     }
 
     @Override
     public void onAttach(@NonNull android.content.Context context) {
         super.onAttach(context);
+        Log.d(TAG, "onAttach: context=" + context.getClass().getSimpleName()
+                + " fragmentTag=" + getTag()
+                + " hashCode=" + System.identityHashCode(this));
         if (context instanceof OnMenuActionListener) {
             listener = (OnMenuActionListener) context;
         }
+    }
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        Log.d(TAG, "onCreate: savedInstanceState=" + (savedInstanceState == null ? "null" : "EXISTS(size=" + savedInstanceState.size() + ")")
+                + " arguments=" + (getArguments() == null ? "null" : "EXISTS")
+                + " hashCode=" + System.identityHashCode(this));
     }
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
+        Log.d(TAG, "onCreateView: hashCode=" + System.identityHashCode(this));
         return inflater.inflate(R.layout.dialog_game_context_menu, container, false);
     }
 
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        Log.d(TAG, "onViewCreated: savedInstanceState=" + (savedInstanceState == null ? "null" : "EXISTS")
+                + " hashCode=" + System.identityHashCode(this));
+
+        if (getDialog() != null) {
+            getDialog().setOnDismissListener(dialog -> {
+                Log.d(TAG, "dialog onDismiss: hashCode=" + System.identityHashCode(this));
+                if (dismissListener != null) {
+                    dismissListener.onOverlayDismissed();
+                }
+            });
+        }
 
         game = new GameEntity();
         game.id = getArguments().getLong(ARG_GAME_ID);
@@ -104,5 +140,70 @@ public class GameContextMenuDialog extends BottomSheetDialogFragment {
             dismiss();
             if (listener != null) listener.onRemoveGame(game);
         });
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        Log.d(TAG, "onStart: hashCode=" + System.identityHashCode(this)
+                + " isAdded=" + isAdded()
+                + " dialog=" + (getDialog() != null ? "showing=" + getDialog().isShowing() : "null"));
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        Log.d(TAG, "onResume: hashCode=" + System.identityHashCode(this));
+    }
+
+    @Override
+    public void onPause() {
+        Log.d(TAG, "onPause: hashCode=" + System.identityHashCode(this));
+        super.onPause();
+    }
+
+    @Override
+    public void onStop() {
+        Log.d(TAG, "onStop: hashCode=" + System.identityHashCode(this));
+        super.onStop();
+    }
+
+    @Override
+    public void onDestroyView() {
+        Log.d(TAG, "onDestroyView: hashCode=" + System.identityHashCode(this));
+        super.onDestroyView();
+    }
+
+    @Override
+    public void onDestroy() {
+        Log.d(TAG, "onDestroy: hashCode=" + System.identityHashCode(this));
+        super.onDestroy();
+    }
+
+    @Override
+    public void onDetach() {
+        Log.d(TAG, "onDetach: hashCode=" + System.identityHashCode(this));
+        super.onDetach();
+    }
+
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle outState) {
+        Log.d(TAG, "onSaveInstanceState: DISCARDING state, hashCode=" + System.identityHashCode(this)
+                + " isAdded=" + isAdded()
+                + " isRemoving=" + isRemoving()
+                + " getFragmentManager=" + (getParentFragmentManager() != null));
+        super.onSaveInstanceState(new Bundle());
+    }
+
+    @Override
+    public void onDismiss(@NonNull android.content.DialogInterface dialog) {
+        Log.d(TAG, "onDismiss: hashCode=" + System.identityHashCode(this));
+        super.onDismiss(dialog);
+    }
+
+    @Override
+    public void onCancel(@NonNull android.content.DialogInterface dialog) {
+        Log.d(TAG, "onCancel: hashCode=" + System.identityHashCode(this));
+        super.onCancel(dialog);
     }
 }

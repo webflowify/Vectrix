@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Required from API 33 to show the foreground-service notification. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Declares the tag EmulatorService passes to createAttributionContext()
          on API 30+. Without this declaration AppOps logs
@@ -15,6 +17,8 @@
         android:label="@string/attribution_emulator_audio" />
 
     <application
+        android:name=".PS1EmulatorApp"
+        android:hardwareAccelerated="true"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -23,6 +27,11 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.PS1Emulator">
+
+        <!-- AdMob application ID (source: res/values/strings.xml → admob_app_id) -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="@string/admob_app_id" />
 
         <activity
             android:name=".MainActivity"

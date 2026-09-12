@@ -15,6 +15,7 @@
 package com.tansoft.ps1emulator.ui.library;
 
 import android.app.Application;
+import android.net.Uri;
 
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
@@ -24,6 +25,7 @@ import androidx.lifecycle.MutableLiveData;
 
 import com.tansoft.ps1emulator.data.AppDatabase;
 import com.tansoft.ps1emulator.data.GameEntity;
+import com.tansoft.ps1emulator.storage.ImportResult;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,10 +40,26 @@ public class LibraryViewModel extends AndroidViewModel {
         RECENTLY_ADDED
     }
 
+    public static class ImportProgress {
+        public final String fileName;
+        public final int percent;
+
+        public ImportProgress(String fileName, int percent) {
+            this.fileName = fileName;
+            this.percent = percent;
+        }
+    }
+
     private final LiveData<List<GameEntity>> allGames;
     private final MutableLiveData<String> searchQuery = new MutableLiveData<>("");
     private final MutableLiveData<SortMode> sortMode = new MutableLiveData<>(SortMode.TITLE);
     private final MediatorLiveData<List<GameEntity>> filteredGames = new MediatorLiveData<>();
+
+    private final MutableLiveData<Boolean> isImporting = new MutableLiveData<>(false);
+    private final MutableLiveData<String> importMessage = new MutableLiveData<>();
+    private final MutableLiveData<ImportProgress> importProgress = new MutableLiveData<>();
+    private final MutableLiveData<ImportResult> importResult = new MutableLiveData<>();
+    private Uri pendingImportUri;
 
     public LibraryViewModel(Application application) {
         super(application);
@@ -78,6 +96,53 @@ public class LibraryViewModel extends AndroidViewModel {
 
     public void refreshGames() {
         applyFilters(allGames.getValue(), searchQuery.getValue(), sortMode.getValue());
+    }
+
+    // --- Import state (survives configuration changes) ---
+
+    public LiveData<Boolean> getIsImporting() {
+        return isImporting;
+    }
+
+    public LiveData<String> getImportMessage() {
+        return importMessage;
+    }
+
+    public LiveData<ImportProgress> getImportProgress() {
+        return importProgress;
+    }
+
+    public LiveData<ImportResult> getImportResult() {
+        return importResult;
+    }
+
+    public Uri getPendingImportUri() {
+        return pendingImportUri;
+    }
+
+    public void startImport(Uri uri) {
+        pendingImportUri = uri;
+        isImporting.postValue(true);
+        importMessage.postValue("Importing ROM...");
+        importProgress.postValue(new ImportProgress(null, 0));
+    }
+
+    public void updateImportMessage(String message) {
+        importMessage.postValue(message);
+    }
+
+    public void updateExtractionProgress(String fileName, int percent) {
+        importProgress.postValue(new ImportProgress(fileName, percent));
+    }
+
+    public void completeImport(ImportResult result) {
+        pendingImportUri = null;
+        isImporting.postValue(false);
+        importResult.postValue(result);
+    }
+
+    public void consumeImportResult() {
+        importResult.setValue(null);
     }
 
     private void applyFilters(List<GameEntity> games, String query, SortMode mode) {

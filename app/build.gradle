@@ -12,15 +12,11 @@ android {
         applicationId "com.tansoft.ps1emulator"
         minSdk 24
         targetSdk 36
-        versionCode 7
-        versionName "1.0.6"
+        versionCode 9
+        versionName "1.0.8"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         ndk {
-            // Ship a native symbol table with the bundle. Without it Play Console
-            // can only resolve exported symbols, so a native crash is attributed
-            // to the nearest exported function instead of the one that faulted —
-            // which is what made the createOboeStream SIGSEGV report so thin.
             debugSymbolLevel 'SYMBOL_TABLE'
         }
         externalNativeBuild {
@@ -36,6 +32,10 @@ android {
             // The PS1 core is unplayable when compiled at -O0 (AGP's default for
             // debug). Force an optimized native build so debug APKs run at full
             // speed; Java/Kotlin is still debuggable.
+            // Debug includes x86 and x86_64 for all emulator ABIs; release is ARM-only.
+            ndk {
+                abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'
+            }
             externalNativeBuild {
                 cmake {
                     arguments '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
@@ -46,6 +46,12 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Release is ARM-only — the native core (PCSX ReARMed + dynarec) is
+            // ARM-only. Excluding x86/x86_64 shrinks the APK and prevents
+            // low-end ARM devices from loading a library built for the wrong ABI.
+            ndk {
+                abiFilters 'arm64-v8a', 'armeabi-v7a'
+            }
             externalNativeBuild {
                 cmake {
                     arguments '-DCMAKE_BUILD_TYPE=Release'
@@ -105,6 +111,11 @@ dependencies {
 
     // Glide (image loading)
     implementation libs.glide
+    annotationProcessor libs.glide.compiler
+
+    // AdMob
+    implementation 'com.google.android.gms:play-services-ads:23.6.0'
+    implementation 'com.google.android.ump:user-messaging-platform:2.2.0'
 
     // DocumentFile (for SAF export/import)
     implementation libs.documentfile

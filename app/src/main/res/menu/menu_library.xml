@@ -3,6 +3,12 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/action_add_game"
+        android:icon="@android:drawable/ic_input_add"
+        android:title="Add Game"
+        app:showAsAction="always" />
+
+    <item
         android:id="@+id/action_info"
         android:icon="@drawable/ic_info"
         android:title="Supported formats"

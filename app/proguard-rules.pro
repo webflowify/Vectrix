@@ -32,9 +32,16 @@
 
 # ── Room database ───────────────────────────────────────────────────────────
 # Room uses reflection to instantiate the database and DAOs, and the
-# annotation processor generates code that references entity field names.
--keep class com.tansoft.ps1emulator.data.AppDatabase { *; }
--keep class com.tansoft.ps1emulator.data.GameDao { *; }
+# annotation processor generates _Impl classes that Room loads at runtime
+# via Class.forName() + getDeclaredConstructor(). R8 must never strip,
+# rename, or merge these generated classes or their constructors.
+-keep class * extends androidx.room.RoomDatabase { *; }
+-keep class * extends androidx.room.RoomDatabase$Callback { *; }
+-keep class **_Impl { *; }
+-keep class **_Impl$* { *; }
+-keepclassmembers class * extends androidx.room.RoomDatabase {
+    public static ** INSTANCE;
+}
 -keep class com.tansoft.ps1emulator.data.GameEntity { *; }
 
 # ── Service binder (used via instanceof cast) ───────────────────────────────
@@ -57,6 +64,8 @@
     **[] $VALUES;
     public *;
 }
+# Keep generated Glide API classes
+-keep public class * extends com.bumptech.glide.GeneratedAppGlideModule
 
 # ── Android components (Activities, Services, Fragments) ─────────────────────
 # proguard-android-optimize.txt already covers Activities/Services declared
@@ -117,3 +126,13 @@
 -dontwarn javax.annotation.**
 -dontwarn org.codehaus.mojo.animal_sniffer.**
 -dontwarn sun.misc.Unsafe
+
+# ── AdMob / Google Mobile Ads ──────────────────────────────
+-keep class com.google.android.gms.ads.** { *; }
+-keep class com.google.android.gms.internal.ads.** { *; }
+-keep class com.google.android.ump.** { *; }
+
+# AdMob ad unit IDs referenced as strings
+-keepclassmembers class com.tansoft.ps1emulator.ads.AdsConfig {
+    public static final *;
+}

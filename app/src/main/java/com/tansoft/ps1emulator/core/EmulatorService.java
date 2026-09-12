@@ -65,7 +65,6 @@ public class EmulatorService extends Service {
     private volatile boolean emulationPaused = false;
     private volatile boolean userPaused = false;
     private volatile boolean fastForwardActive = false;
-    private volatile boolean audioWasEnabledBeforeFF = true;
     private volatile boolean rewindActive = false;
     private volatile boolean slowMotionActive = false;
 
@@ -291,6 +290,7 @@ public class EmulatorService extends Service {
                 // shortens the period, slow-motion lengthens it; the native side
                 // already runs N retro_run() calls per iteration when fast
                 // forwarding, so the period is divided to match.
+                // Only one mode is active at a time (mutual exclusion).
                 long framePeriod = targetFrameNanos;
                 if (fastForwardActive) {
                     int multiplier = EmulatorBridge.nativeGetFastForwardSpeed();
@@ -406,7 +406,11 @@ public class EmulatorService extends Service {
 
     /**
      * Toggle fast-forward mode. When enabled, the emulation runs at the
-     * configured multiplier speed and audio is muted.
+     * configured multiplier speed. Audio keeps playing (at the faster rate).
+     *
+     * <p>Fast-forward and slow-motion are mutually exclusive: enabling
+     * fast-forward disables slow-motion and vice versa. Rewind also disables
+     * both — only one speed mode is active at a time.
      */
     public void setFastForward(boolean active) {
         if (fastForwardActive == active) return;
@@ -416,17 +420,8 @@ public class EmulatorService extends Service {
         }
         fastForwardActive = active;
         EmulatorBridge.nativeSetFastForwardEnabled(active);
-        if (active) {
-            // Remember audio state before muting
-            audioWasEnabledBeforeFF = PreferenceManager
-                    .getDefaultSharedPreferences(this)
-                    .getBoolean("audio_enabled", true);
-            EmulatorBridge.nativeSetAudioEnabled(false);
-            EmulatorBridge.nativeClearAudioRingBuffer();
-        } else {
-            // Restore audio to its previous state
-            EmulatorBridge.nativeSetAudioEnabled(audioWasEnabledBeforeFF);
-        }
+        // Clear ring buffer on transition to prevent stale audio artifacts
+        EmulatorBridge.nativeClearAudioRingBuffer();
     }
 
     public boolean isFastForwardActive() {
@@ -436,6 +431,10 @@ public class EmulatorService extends Service {
     /**
      * Toggle slow-motion mode. When enabled, the emulation runs at a fraction
      * of normal speed with pitch-shifted audio (classic slow-mo effect).
+     *
+     * <p>Slow-motion and fast-forward are mutually exclusive: enabling
+     * slow-motion disables fast-forward and vice versa. Rewind also disables
+     * both — only one speed mode is active at a time.
      */
     public void setSlowMotion(boolean active) {
         if (slowMotionActive == active) return;
@@ -480,13 +479,29 @@ public class EmulatorService extends Service {
     }
 
     /**
-     * Perform a single rewind step. Pauses emulation briefly, restores
-     * the previous snapshot, clears audio, then resumes.
+     * Perform a single rewind step. Pauses emulation briefly, disables any
+     * active speed mode (fast-forward / slow-motion), restores the previous
+     * snapshot, clears audio, then resumes.
      * Returns true if a snapshot was restored, false if buffer is empty.
+     *
+     * <p>Rewind is always a one-shot action: it returns the emulation to
+     * normal speed after the step. If fast-forward or slow-motion was active
+     * it is turned off so the user lands back at 1x.
      */
     public boolean rewindStep() {
         if (!running) return false;
         boolean wasAlreadyPaused = paused;
+        // Disable speed modes so the user returns to normal after rewind
+        boolean wasFF = fastForwardActive;
+        boolean wasSM = slowMotionActive;
+        if (wasFF) {
+            fastForwardActive = false;
+            EmulatorBridge.nativeSetFastForwardEnabled(false);
+        }
+        if (wasSM) {
+            slowMotionActive = false;
+            EmulatorBridge.nativeSetSlowMotionEnabled(false);
+        }
         pauseAndWait();
         try {
             boolean result = EmulatorBridge.nativeRewindStep();

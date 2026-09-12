@@ -95,6 +95,7 @@
             android:layout_height="40dp"
             android:layout_marginStart="8dp"
             android:backgroundTint="@color/md_primary"
+            android:text="Load"
             android:textAllCaps="false"
             android:textColor="@color/md_on_primary"
             android:textStyle="bold"

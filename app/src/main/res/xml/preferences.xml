@@ -14,6 +14,11 @@
             android:title="Auto-Rotate"
             android:summary="Allow landscape orientation when device is rotated"
             android:defaultValue="true" />
+        <SwitchPreferenceCompat
+            android:key="stretch_fullscreen"
+            android:title="Stretch to Fullscreen (Landscape)"
+            android:summary="Ignore aspect ratio and fill the entire screen in landscape"
+            android:defaultValue="false" />
     </PreferenceCategory>
 
     <PreferenceCategory android:title="Video">

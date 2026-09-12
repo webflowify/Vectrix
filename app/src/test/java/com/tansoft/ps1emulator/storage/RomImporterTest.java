@@ -155,4 +155,46 @@ public class RomImporterTest {
         assertNotNull(RomImporter.SUPPORTED_EXTENSIONS_DISPLAY);
         assertTrue(RomImporter.SUPPORTED_EXTENSIONS_DISPLAY.length() > 0);
     }
+
+    // --- cleanGameTitle ---
+
+    @Test
+    public void cleanGameTitle_null_returnsUnknown() {
+        assertEquals("Unknown Game", RomImporter.cleanGameTitle(null));
+    }
+
+    @Test
+    public void cleanGameTitle_empty_returnsUnknown() {
+        assertEquals("Unknown Game", RomImporter.cleanGameTitle(""));
+    }
+
+    @Test
+    public void cleanGameTitle_simpleName_preserved() {
+        assertEquals("Crash Bandicoot", RomImporter.cleanGameTitle("Crash Bandicoot"));
+    }
+
+    @Test
+    public void cleanGameTitle_underscoresConvertedToSpaces() {
+        assertEquals("Crash Bandicoot", RomImporter.cleanGameTitle("Crash_Bandicoot"));
+    }
+
+    @Test
+    public void cleanGameTitle_parentheticalRegionStripped() {
+        assertEquals("Crash Bandicoot", RomImporter.cleanGameTitle("Crash Bandicoot (USA)"));
+    }
+
+    @Test
+    public void cleanGameTitle_multipleParentheticalStripped() {
+        assertEquals("Crash Bandicoot", RomImporter.cleanGameTitle("Crash Bandicoot (USA) (v1.0)"));
+    }
+
+    @Test
+    public void cleanGameTitle_onlyParenthetical_fallsBackToRaw() {
+        assertEquals("(test)", RomImporter.cleanGameTitle("(test)"));
+    }
+
+    @Test
+    public void cleanGameTitle_excessiveWhitespace_collapsed() {
+        assertEquals("Crash Bandicoot", RomImporter.cleanGameTitle("Crash   Bandicoot   (USA)"));
+    }
 }

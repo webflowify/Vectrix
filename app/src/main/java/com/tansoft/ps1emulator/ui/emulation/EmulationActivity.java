@@ -37,10 +37,18 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.tansoft.ps1emulator.R;
+import com.tansoft.ps1emulator.ads.AdManager;
+import com.tansoft.ps1emulator.ads.AdsConfig;
+import com.tansoft.ps1emulator.ads.AdCoordinator;
+import com.tansoft.ps1emulator.ads.EngagementTracker;
+import com.tansoft.ps1emulator.ads.RewardedUnlockDialog;
+import com.tansoft.ps1emulator.ads.RewardedUnlockManager;
+import com.tansoft.ps1emulator.ads.ClickCounter;
 import com.tansoft.ps1emulator.core.EmulatorBridge;
 import com.tansoft.ps1emulator.util.EdgeToEdgeHelper;
 import com.tansoft.ps1emulator.core.EmulatorService;
 import com.tansoft.ps1emulator.core.SettingsHelper;
+import androidx.preference.PreferenceManager;
 import com.tansoft.ps1emulator.storage.ArchiveExtractor;
 import com.tansoft.ps1emulator.storage.SaveStateManager;
 import com.tansoft.ps1emulator.ui.savestate.SaveStateActivity;
@@ -110,6 +118,7 @@ public class EmulationActivity extends AppCompatActivity
 
     // ─── Stretch-to-fullscreen toggle ────────────────────────────────
     private ImageButton fullscreenButton;
+    private TextView fullscreenText;
     private boolean stretchFullscreen = false;
     private static final String PREF_STRETCH_FULLSCREEN = "stretch_fullscreen";
 
@@ -119,6 +128,8 @@ public class EmulationActivity extends AppCompatActivity
     private TextView fastForwardText;
     private ImageButton slowMotionButton;
     private TextView slowMotionText;
+    private ImageButton rewindButton;
+    private TextView rewindText;
     private boolean rewindInProgress = false;
     private long lastRewindTime = 0;
     private static final long REWIND_MIN_INTERVAL_MS = 200;
@@ -133,6 +144,14 @@ public class EmulationActivity extends AppCompatActivity
                 if (rewindMenuItem != null) {
                     rewindMenuItem.setText("Rewind (" + count + ")");
                 }
+                if (rewindText != null) {
+                    android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+                    boolean isLandscape = dm.widthPixels > dm.heightPixels;
+                    rewindText.setText(String.valueOf(count));
+                    rewindText.setVisibility(isLandscape ? View.VISIBLE : View.GONE);
+                }
+            } else if (rewindText != null) {
+                rewindText.setVisibility(View.GONE);
             }
             rewindCountHandler.postDelayed(this, 500);
         }
@@ -142,6 +161,26 @@ public class EmulationActivity extends AppCompatActivity
     private static final String PREF_LAST_SAVE_SLOT = "last_save_slot";
     private static final String PREF_AUTO_SAVE_SLOT = "auto_save_slot";
     private boolean emulationPausedForSaveState = false;
+
+    // ─── Auto-pause for overlays (ads / settings) ──────────────────────
+    // Two separate flags so onResume() only resumes from settings (not ads),
+    // and the ad dismiss callback only resumes from ads (not settings).
+    private boolean emulationPausedForAd = false;
+    private boolean emulationPausedForSettings = false;
+
+    // ─── Engagement debug logger ───────────────────────────────────────
+    private final android.os.Handler engagementLogHandler =
+            new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable engagementLogger = new Runnable() {
+        @Override
+        public void run() {
+            if (emulatorService != null && emulatorService.isRunning()) {
+                android.util.Log.d("Engagement",
+                        EngagementTracker.getInstance().getDebugSummary());
+            }
+            engagementLogHandler.postDelayed(this, 30_000);
+        }
+    };
 
     private static final String KEY_PROGRESS_VISIBLE = "progress_visible";
     private static final String KEY_PROGRESS_TEXT = "progress_text";
@@ -160,11 +199,17 @@ public class EmulationActivity extends AppCompatActivity
                 emulatorService.startEmulation(biosPath, romPath);
             }
 
+            // Track engagement session for dynamic ad timing
+            EngagementTracker.getInstance().startSession();
+
             // Enable rewind with configured depth
             int depthSeconds = settingsHelper.getRewindDepth();
             emulatorService.setRewindDepth(depthSeconds);
             emulatorService.setRewindEnabled(true);
             rewindCountHandler.post(rewindCountUpdater);
+
+            // Log engagement every 30 seconds for debugging
+            engagementLogHandler.post(engagementLogger);
 
             updateGameStats();
         }
@@ -197,8 +242,9 @@ public static Intent createIntent(android.content.Context context,
 
         settingsHelper = new SettingsHelper(this);
 
-        stretchFullscreen = getPreferences(Context.MODE_PRIVATE)
-                .getBoolean(PREF_STRETCH_FULLSCREEN, false);
+        RewardedUnlockManager.getInstance().init(this);
+
+        stretchFullscreen = settingsHelper.isStretchFullscreenEnabled();
 
         glSurfaceView = findViewById(R.id.gl_surface_view);
         glSurfaceView.setEGLContextClientVersion(2);
@@ -277,6 +323,7 @@ public static Intent createIntent(android.content.Context context,
         initMenu();
         initFastForwardButton();
         initSlowMotionButton();
+        initRewindButton();
         initFullscreenButton();
         applySettings();
         applyAutoRotateSetting();
@@ -348,21 +395,29 @@ public static Intent createIntent(android.content.Context context,
                 fftParams.rightMargin = (int)(12 * metrics.density);
                 fastForwardText.setLayoutParams(fftParams);
             }
+            if (rewindButton != null) {
+                rewindButton.setVisibility(View.GONE);
+                android.widget.FrameLayout.LayoutParams rwParams = (android.widget.FrameLayout.LayoutParams) rewindButton.getLayoutParams();
+                rwParams.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.END;
+                rwParams.topMargin = 0;
+                rwParams.bottomMargin = safeMarginTop + (int)(12 * metrics.density);
+                rwParams.leftMargin = 0;
+                rwParams.rightMargin = (int)(68 * metrics.density);
+                rewindButton.setLayoutParams(rwParams);
+            }
+            if (rewindText != null) {
+                rewindText.setVisibility(View.GONE);
+                android.widget.FrameLayout.LayoutParams rwtParams = (android.widget.FrameLayout.LayoutParams) rewindText.getLayoutParams();
+                rwtParams.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.END;
+                rwtParams.bottomMargin = safeMarginTop + (int)(64 * metrics.density);
+                rwtParams.rightMargin = (int)(68 * metrics.density);
+                rewindText.setLayoutParams(rwtParams);
+            }
             if (slowMotionButton != null) {
-                android.widget.FrameLayout.LayoutParams smParams = (android.widget.FrameLayout.LayoutParams) slowMotionButton.getLayoutParams();
-                smParams.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.END;
-                smParams.topMargin = 0;
-                smParams.bottomMargin = safeMarginTop + (int)(12 * metrics.density);
-                smParams.leftMargin = 0;
-                smParams.rightMargin = (int)(68 * metrics.density);
-                slowMotionButton.setLayoutParams(smParams);
+                slowMotionButton.setVisibility(View.GONE);
             }
             if (slowMotionText != null) {
-                android.widget.FrameLayout.LayoutParams smtParams = (android.widget.FrameLayout.LayoutParams) slowMotionText.getLayoutParams();
-                smtParams.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.END;
-                smtParams.bottomMargin = safeMarginTop + (int)(64 * metrics.density);
-                smtParams.rightMargin = (int)(68 * metrics.density);
-                slowMotionText.setLayoutParams(smtParams);
+                slowMotionText.setVisibility(View.GONE);
             }
         } else {
             // Landscape: by default keep the game's native 4:3 aspect ratio with
@@ -395,54 +450,99 @@ public static Intent createIntent(android.content.Context context,
             padParams.topMargin = 0;
             padParams.gravity = android.view.Gravity.CENTER;
 
+            // --- Bottom-left pair ---
+            // btnMenu       @ marginStart = MARGIN   (leftmost, bottom-left corner)
+            // btnFullscreen  @ marginStart = MARGIN + BUTTON_W + 20dp gap  (right of btnMenu)
+            //   fullscreen_text label sits directly above btnFullscreen.
+            int baseM = (int) (12 * metrics.density);
+            int btnW = (int) (48 * metrics.density);
+            int fullscreenLeft = baseM + btnW + (int)(20 * metrics.density);
+            int stride = (int) (56 * metrics.density);
+            int textBottomExtra = (int) (52 * metrics.density);  // label above button
+
             if (fpsOverlay != null) {
                 android.widget.FrameLayout.LayoutParams fpsParams = (android.widget.FrameLayout.LayoutParams) fpsOverlay.getLayoutParams();
-                // Sit the FPS readout below the fullscreen toggle (top-left corner).
-                fpsParams.topMargin = (int)(64 * metrics.density);
+                fpsParams.topMargin = (int)(8 * metrics.density);
                 fpsOverlay.setLayoutParams(fpsParams);
             }
-            if (fullscreenButton != null) {
-                fullscreenButton.setVisibility(View.VISIBLE);
-            }
             if (menuButton != null) {
+                menuButton.setVisibility(View.VISIBLE);
                 android.widget.FrameLayout.LayoutParams menuParams = (android.widget.FrameLayout.LayoutParams) menuButton.getLayoutParams();
                 menuParams.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.START;
                 menuParams.topMargin = 0;
-                menuParams.bottomMargin = (int)(12 * metrics.density);
-                menuParams.leftMargin = (int)(12 * metrics.density);
+                menuParams.bottomMargin = baseM;
+                menuParams.leftMargin = baseM;
                 menuParams.rightMargin = 0;
                 menuButton.setLayoutParams(menuParams);
+            }
+            if (fullscreenButton != null) {
+                fullscreenButton.setVisibility(View.VISIBLE);
+                android.widget.FrameLayout.LayoutParams fsParams = (android.widget.FrameLayout.LayoutParams) fullscreenButton.getLayoutParams();
+                fsParams.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.START;
+                fsParams.topMargin = 0;
+                fsParams.bottomMargin = baseM;
+                fsParams.leftMargin = fullscreenLeft;
+                fsParams.rightMargin = 0;
+                fullscreenButton.setLayoutParams(fsParams);
+            }
+            if (fullscreenText != null) {
+                android.widget.FrameLayout.LayoutParams fstParams = (android.widget.FrameLayout.LayoutParams) fullscreenText.getLayoutParams();
+                fstParams.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.START;
+                fstParams.bottomMargin = baseM + textBottomExtra;
+                fstParams.leftMargin = fullscreenLeft;
+                fstParams.rightMargin = 0;
+                fullscreenText.setLayoutParams(fstParams);
             }
             if (fastForwardButton != null) {
                 android.widget.FrameLayout.LayoutParams ffParams = (android.widget.FrameLayout.LayoutParams) fastForwardButton.getLayoutParams();
                 ffParams.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.END;
                 ffParams.topMargin = 0;
-                ffParams.bottomMargin = (int)(12 * metrics.density);
+                ffParams.bottomMargin = baseM;
                 ffParams.leftMargin = 0;
-                ffParams.rightMargin = (int)(12 * metrics.density);
+                ffParams.rightMargin = baseM;
                 fastForwardButton.setLayoutParams(ffParams);
             }
             if (fastForwardText != null) {
                 android.widget.FrameLayout.LayoutParams fftParams = (android.widget.FrameLayout.LayoutParams) fastForwardText.getLayoutParams();
                 fftParams.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.END;
-                fftParams.bottomMargin = (int)(64 * metrics.density);
-                fftParams.rightMargin = (int)(12 * metrics.density);
+                fftParams.bottomMargin = baseM + textBottomExtra;
+                fftParams.rightMargin = baseM;
                 fastForwardText.setLayoutParams(fftParams);
             }
+            if (rewindButton != null) {
+                rewindButton.setVisibility(View.VISIBLE);
+                android.widget.FrameLayout.LayoutParams rwParams = (android.widget.FrameLayout.LayoutParams) rewindButton.getLayoutParams();
+                rwParams.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.END;
+                rwParams.topMargin = 0;
+                rwParams.bottomMargin = baseM;
+                rwParams.leftMargin = 0;
+                rwParams.rightMargin = baseM + stride;
+                rewindButton.setLayoutParams(rwParams);
+            }
+            if (rewindText != null) {
+                rewindText.setVisibility(View.VISIBLE);
+                android.widget.FrameLayout.LayoutParams rwtParams = (android.widget.FrameLayout.LayoutParams) rewindText.getLayoutParams();
+                rwtParams.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.END;
+                rwtParams.bottomMargin = baseM + textBottomExtra;
+                rwtParams.rightMargin = baseM + stride;
+                rewindText.setLayoutParams(rwtParams);
+            }
             if (slowMotionButton != null) {
+                slowMotionButton.setVisibility(View.VISIBLE);
                 android.widget.FrameLayout.LayoutParams smParams = (android.widget.FrameLayout.LayoutParams) slowMotionButton.getLayoutParams();
                 smParams.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.END;
                 smParams.topMargin = 0;
-                smParams.bottomMargin = (int)(12 * metrics.density);
+                smParams.bottomMargin = baseM;
                 smParams.leftMargin = 0;
-                smParams.rightMargin = (int)(68 * metrics.density);
+                smParams.rightMargin = baseM + 2 * stride;
                 slowMotionButton.setLayoutParams(smParams);
             }
             if (slowMotionText != null) {
+                slowMotionText.setVisibility(View.VISIBLE);
                 android.widget.FrameLayout.LayoutParams smtParams = (android.widget.FrameLayout.LayoutParams) slowMotionText.getLayoutParams();
                 smtParams.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.END;
-                smtParams.bottomMargin = (int)(64 * metrics.density);
-                smtParams.rightMargin = (int)(68 * metrics.density);
+                smtParams.bottomMargin = baseM + textBottomExtra;
+                smtParams.rightMargin = baseM + 2 * stride;
                 slowMotionText.setLayoutParams(smtParams);
             }
         }
@@ -488,6 +588,7 @@ public static Intent createIntent(android.content.Context context,
         // previously deferred by a start-not-allowed rejection.
         maybeStartEmulationService();
         android.util.Log.d(TAG, "onResume: emulationPausedForSaveState=" + emulationPausedForSaveState
+                + " emulationPausedForSettings=" + emulationPausedForSettings
                 + " emulatorService=" + (emulatorService != null)
                 + " serviceBound=" + serviceBound);
         if (emulationPausedForSaveState && emulatorService != null) {
@@ -498,6 +599,8 @@ public static Intent createIntent(android.content.Context context,
             }
             emulationPausedForSaveState = false;
         }
+        // Auto-resume from settings overlay (the user has left SettingsActivity).
+        resumeFromSettings();
         if (glSurfaceView != null) {
             glSurfaceView.onResume();
         }
@@ -524,13 +627,34 @@ public static Intent createIntent(android.content.Context context,
         }
         applyAutoRotateSetting();
         applySettings();
+        // Re-assert rewind and slow motion button visibility after applySettings
+        // (which may re-trigger updateLayoutForOrientation via setStretchFullscreen).
+        // This guards against stale view-state restoration overriding the
+        // correct orientation-based visibility.
+        if (rewindButton != null || rewindText != null || slowMotionButton != null || slowMotionText != null) {
+            android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+            boolean isLandscape = dm.widthPixels > dm.heightPixels;
+            int vis = isLandscape ? View.VISIBLE : View.GONE;
+            if (rewindButton != null) rewindButton.setVisibility(vis);
+            if (rewindText != null) rewindText.setVisibility(vis);
+            if (slowMotionButton != null) slowMotionButton.setVisibility(vis);
+            if (slowMotionText != null) slowMotionText.setVisibility(vis);
+        }
     }
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
+        EngagementTracker.getInstance().endSession();
+        RewardedUnlockManager.getInstance().clearSession();
+        engagementLogHandler.removeCallbacks(engagementLogger);
         rewindCountHandler.removeCallbacks(rewindCountUpdater);
         rewindExecutor.shutdownNow();
+        if (AdCoordinator.getInstance().getCurrentShowingActivity() == this) {
+            AdCoordinator.getInstance().forceReset();
+        }
+        // Clear overlay auto-pause flags so no stale resume fires after destroy.
+        emulationPausedForAd = false;
+        emulationPausedForSettings = false;
         // Ensure fast-forward, slow-motion, rewind and pause are off before stopping
         if (emulatorService != null) {
             if (emulatorService.isUserPaused()) {
@@ -550,6 +674,7 @@ public static Intent createIntent(android.content.Context context,
             serviceBound = false;
         }
         stopService(new Intent(this, EmulatorService.class));
+        super.onDestroy();
     }
 
     /**
@@ -573,7 +698,7 @@ public static Intent createIntent(android.content.Context context,
             // Already user-paused — offer resume or exit
             new AlertDialog.Builder(this)
                 .setTitle("Exit Emulation?")
-                .setPositiveButton("Exit", (dialog, which) -> finish())
+                .setPositiveButton("Exit", (dialog, which) -> exitWithInterstitial())
                 .setNegativeButton("Resume", (dialog, which) -> {
                     if (emulatorService != null) {
                         emulatorService.userResume();
@@ -603,11 +728,8 @@ public static Intent createIntent(android.content.Context context,
             new AlertDialog.Builder(this)
                 .setTitle("Exit Emulation?")
                 .setMessage("Save state before exiting?")
-                .setPositiveButton("Save & Exit", (dialog, which) -> {
-                    SaveStateManager.saveState(this, currentGameDiscId, 0);
-                    finish();
-                })
-                .setNegativeButton("Exit", (dialog, which) -> finish())
+                .setPositiveButton("Save & Exit", (dialog, which) -> saveStateAndExit())
+                .setNegativeButton("Exit", (dialog, which) -> exitWithInterstitial())
                 .setNeutralButton("Cancel", (dialog, which) -> {
                     if (emulatorService != null) {
                         emulatorService.resume();
@@ -620,10 +742,49 @@ public static Intent createIntent(android.content.Context context,
                 })
                 .show();
         } else {
-            // Nothing running and nothing to save — same outcome as the
-            // framework's default back behaviour for this activity.
             finish();
         }
+    }
+
+    /**
+     * Shows an interstitial ad (if the click threshold is met and an ad is
+     * loaded) and calls {@link #finish()} once the ad is dismissed or fails
+     * to show. If no ad is available the activity finishes immediately.
+     *
+     * <p>Used as the confirmed-exit path from the back-press handler so the
+     * user is not left staring at a black screen while the ad plays — the
+     * activity stays alive for the duration of the full-screen content.
+     */
+    private void exitWithInterstitial() {
+        ClickCounter.getInstance(this).recordClick();
+        AdManager.getInstance().showInterstitialThen(this, this::finish);
+    }
+
+    /**
+     * Saves the current state to slot 0, then shows an interstitial and
+     * finishes the activity once the ad is dismissed. This is the
+     * "Save & Exit" path from the back-press confirmation dialog.
+     */
+    private void saveStateAndExit() {
+        showProgress("Saving state…");
+        SharedPreferences prefs = getPreferences(Context.MODE_PRIVATE);
+        int slot = prefs.getInt(PREF_LAST_SAVE_SLOT, 0);
+        int finalSlot = slot;
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                if (emulatorService != null && emulatorService.isRunning()) {
+                    emulatorService.saveStateSync(
+                            SaveStateManager.getSaveFile(this, currentGameDiscId, finalSlot).getAbsolutePath());
+                } else {
+                    SaveStateManager.saveState(this, currentGameDiscId, finalSlot);
+                }
+            } finally {
+                runOnUiThread(() -> {
+                    hideProgress();
+                    exitWithInterstitial();
+                });
+            }
+        });
     }
 
     private void initMenu() {
@@ -637,7 +798,10 @@ public static Intent createIntent(android.content.Context context,
         fastForwardButton = findViewById(R.id.btnFastForward);
         fastForwardText = findViewById(R.id.fast_forward_text);
         if (fastForwardButton != null) {
-            fastForwardButton.setOnClickListener(v -> toggleFastForward());
+            fastForwardButton.setOnClickListener(v -> {
+                ClickCounter.getInstance(this).recordClick();
+                toggleFastForward();
+            });
         }
     }
 
@@ -645,14 +809,30 @@ public static Intent createIntent(android.content.Context context,
         slowMotionButton = findViewById(R.id.btnSlowMotion);
         slowMotionText = findViewById(R.id.slow_motion_text);
         if (slowMotionButton != null) {
-            slowMotionButton.setOnClickListener(v -> toggleSlowMotion());
+            slowMotionButton.setOnClickListener(v -> {
+                ClickCounter.getInstance(this).recordClick();
+                toggleSlowMotion();
+            });
+        }
+    }
+
+    private void initRewindButton() {
+        rewindButton = findViewById(R.id.btnRewind);
+        rewindText = findViewById(R.id.rewind_text);
+        if (rewindButton != null) {
+            rewindButton.setOnClickListener(v -> {
+                ClickCounter.getInstance(this).recordClick();
+                performRewindStep();
+            });
         }
     }
 
     private void initFullscreenButton() {
         fullscreenButton = findViewById(R.id.btnFullscreen);
+        fullscreenText = findViewById(R.id.fullscreen_text);
         if (fullscreenButton != null) {
             updateFullscreenButtonIcon();
+            updateFullscreenText();
             fullscreenButton.setOnClickListener(v -> toggleFullscreen());
         }
     }
@@ -662,10 +842,13 @@ public static Intent createIntent(android.content.Context context,
         getPreferences(Context.MODE_PRIVATE).edit()
                 .putBoolean(PREF_STRETCH_FULLSCREEN, stretchFullscreen)
                 .apply();
+        PreferenceManager.getDefaultSharedPreferences(this).edit()
+                .putBoolean("stretch_fullscreen", stretchFullscreen)
+                .apply();
+        ClickCounter.getInstance(this).recordClick();
         updateFullscreenButtonIcon();
+        updateFullscreenText();
         updateLayoutForOrientation();
-        // Repaint immediately so the stretched/letterboxed view updates even
-        // while the emulation is paused (no new frames are being produced).
         if (glSurfaceView != null) {
             glSurfaceView.requestRender();
         }
@@ -679,11 +862,66 @@ public static Intent createIntent(android.content.Context context,
                 : R.drawable.ic_fullscreen_enter);
     }
 
+    private void updateFullscreenText() {
+        if (fullscreenText == null) return;
+        if (stretchFullscreen) {
+            fullscreenText.setText("Stretch");
+            fullscreenText.setVisibility(View.VISIBLE);
+        } else {
+            fullscreenText.setVisibility(View.GONE);
+        }
+    }
+
+    public void setStretchFullscreen(boolean enabled) {
+        if (stretchFullscreen == enabled) return;
+        stretchFullscreen = enabled;
+        PreferenceManager.getDefaultSharedPreferences(this).edit()
+                .putBoolean("stretch_fullscreen", enabled)
+                .apply();
+        getPreferences(Context.MODE_PRIVATE).edit()
+                .putBoolean(PREF_STRETCH_FULLSCREEN, enabled)
+                .apply();
+        updateFullscreenButtonIcon();
+        updateFullscreenText();
+        updateLayoutForOrientation();
+        if (glSurfaceView != null) {
+            glSurfaceView.requestRender();
+        }
+    }
+
     private void toggleFastForward() {
         if (emulatorService == null || !emulatorService.isRunning()) return;
+
+        if (!RewardedUnlockManager.getInstance().isTimedUnlockActive("fast_forward")) {
+            if (!RewardedUnlockManager.getInstance().attemptUnlock(this, "fast_forward")) {
+                return;
+            }
+
+            // Pause emulation while the ad dialog / rewarded video is on screen.
+            pauseForAd();
+            RewardedUnlockDialog.show(this,
+                "Fast Forward",
+                "Watch a short video to unlock all speeds (2x-16x) for 24 hours.",
+                () -> {
+                    RewardedUnlockManager.getInstance().unlockTimed("fast_forward");
+                    emulatorService.setFastForward(true);
+                    updateFastForwardUI(true);
+                    // Mutual exclusion: SM was auto-disabled by the service
+                    updateSlowMotionUI(false);
+                    long remaining = RewardedUnlockManager.getInstance().getTimedUnlockRemaining("fast_forward");
+                    Toast.makeText(this, "Fast Forward unlocked for " + formatDuration(remaining), Toast.LENGTH_SHORT).show();
+                },
+                this::resumeFromAd);
+            return;
+        }
+
         boolean newState = !emulatorService.isFastForwardActive();
         emulatorService.setFastForward(newState);
         updateFastForwardUI(newState);
+        // Mutual exclusion: if FF was enabled, SM was auto-disabled
+        if (newState) {
+            updateSlowMotionUI(false);
+        }
     }
 
     private void updateFastForwardUI(boolean active) {
@@ -703,11 +941,49 @@ public static Intent createIntent(android.content.Context context,
         }
     }
 
+    private String formatDuration(long millis) {
+        long hours = millis / (1000 * 60 * 60);
+        long minutes = (millis % (1000 * 60 * 60)) / (1000 * 60);
+        if (hours > 0) {
+            return hours + "h " + minutes + "m";
+        }
+        return minutes + "m";
+    }
+
     private void toggleSlowMotion() {
         if (emulatorService == null || !emulatorService.isRunning()) return;
+
+        if (!RewardedUnlockManager.getInstance().isTimedUnlockActive("slow_motion")) {
+            if (!RewardedUnlockManager.getInstance().attemptUnlock(this, "slow_motion")) {
+                return;
+            }
+
+            // Pause emulation while the ad dialog / rewarded video is on screen.
+            pauseForAd();
+            RewardedUnlockDialog.show(this,
+                "Slow Motion",
+                "Watch a short video to unlock slow motion for 24 hours.",
+                () -> {
+                    RewardedUnlockManager.getInstance().unlockTimed("slow_motion");
+                    boolean newState = !emulatorService.isSlowMotionActive();
+                    emulatorService.setSlowMotion(newState);
+                    updateSlowMotionUI(newState);
+                    // Mutual exclusion: FF was auto-disabled by the service
+                    updateFastForwardUI(false);
+                    long remaining = RewardedUnlockManager.getInstance().getTimedUnlockRemaining("slow_motion");
+                    Toast.makeText(this, "Slow Motion unlocked for " + formatDuration(remaining), Toast.LENGTH_SHORT).show();
+                },
+                this::resumeFromAd);
+            return;
+        }
+
         boolean newState = !emulatorService.isSlowMotionActive();
         emulatorService.setSlowMotion(newState);
         updateSlowMotionUI(newState);
+        // Mutual exclusion: if SM was enabled, FF was auto-disabled
+        if (newState) {
+            updateFastForwardUI(false);
+        }
     }
 
     private void updateSlowMotionUI(boolean active) {
@@ -747,19 +1023,115 @@ public static Intent createIntent(android.content.Context context,
         }
     }
 
+    // ─── Auto-pause for overlay (ad / settings) ────────────────────────
+    //
+    // pauseForAd()     — called before showing a rewarded-ad BottomSheet.
+    // resumeFromAd()   — called when the ad (or the dialog) is dismissed.
+    // pauseForSettings() — called before launching SettingsActivity.
+    // resumeFromSettings() — called in onResume() when returning from settings.
+    //
+    // Both helpers are no-ops when:
+    //   • the service is not bound/running
+    //   • the user has manually paused (userPaused == true)
+    //   • the relevant flag is already set (prevents double-pause)
+    //
+    // resumeFromAd also respects userPaused: if the user manually paused
+    // while the ad was showing, the ad dismiss must NOT auto-resume.
+
+    private void pauseForAd() {
+        if (emulatorService == null || !emulatorService.isRunning()) return;
+        if (emulatorService.isUserPaused()) return;
+        if (emulationPausedForAd) return;           // already paused for an ad
+        emulatorService.pauseAndWait();
+        emulationPausedForAd = true;
+    }
+
+    private void resumeFromAd() {
+        if (!emulationPausedForAd) return;
+        emulationPausedForAd = false;
+        if (emulatorService != null && emulatorService.isRunning()
+                && !emulatorService.isUserPaused()) {
+            emulatorService.resume();
+        }
+    }
+
+    private void pauseForSettings() {
+        if (emulatorService == null || !emulatorService.isRunning()) return;
+        if (emulatorService.isUserPaused()) return;
+        if (emulationPausedForSettings) return;     // already paused for settings
+        emulatorService.pauseAndWait();
+        emulationPausedForSettings = true;
+    }
+
+    private void resumeFromSettings() {
+        if (!emulationPausedForSettings) return;
+        emulationPausedForSettings = false;
+        if (emulatorService != null && emulatorService.isRunning()
+                && !emulatorService.isUserPaused()) {
+            emulatorService.resume();
+        }
+    }
+
     private void performRewindStep() {
         if (emulatorService == null || !emulatorService.isRunning()) return;
         long now = System.currentTimeMillis();
         if (now - lastRewindTime < REWIND_MIN_INTERVAL_MS) return;
         if (rewindInProgress) return;
+
+        if (!RewardedUnlockManager.getInstance().isTimedUnlockActive("rewind")) {
+            if (!RewardedUnlockManager.getInstance().attemptUnlock(this, "rewind")) {
+                return;
+            }
+
+            // Pause emulation while the ad dialog / rewarded video is on screen.
+            pauseForAd();
+            RewardedUnlockDialog.show(this,
+                "Rewind",
+                "Watch a short video to unlock all rewind depths (30s-120s) for 24 hours.",
+                () -> {
+                    RewardedUnlockManager.getInstance().unlockTimed("rewind");
+                    lastRewindTime = now;
+                    rewindInProgress = true;
+                    long remaining = RewardedUnlockManager.getInstance().getTimedUnlockRemaining("rewind");
+                    Toast.makeText(this, "Rewind unlocked for " + formatDuration(remaining), Toast.LENGTH_SHORT).show();
+                    rewindExecutor.execute(() -> {
+                        try {
+                            emulatorService.rewindStep();
+                            runOnUiThread(() -> {
+                                rewindInProgress = false;
+                                updateFastForwardUI(false);
+                                updateSlowMotionUI(false);
+                            });
+                        } catch (Exception e) {
+                            runOnUiThread(() -> {
+                                rewindInProgress = false;
+                                updateFastForwardUI(false);
+                                updateSlowMotionUI(false);
+                            });
+                        }
+                    });
+                },
+                this::resumeFromAd);
+            return;
+        }
+
         lastRewindTime = now;
         rewindInProgress = true;
         rewindExecutor.execute(() -> {
             try {
                 emulatorService.rewindStep();
-                runOnUiThread(() -> rewindInProgress = false);
+                runOnUiThread(() -> {
+                    rewindInProgress = false;
+                    // Rewind disables FF/SM — sync both button visuals
+                    updateFastForwardUI(false);
+                    updateSlowMotionUI(false);
+                });
             } catch (Exception e) {
-                runOnUiThread(() -> rewindInProgress = false);
+                runOnUiThread(() -> {
+                    rewindInProgress = false;
+                    updateFastForwardUI(false);
+                    updateSlowMotionUI(false);
+                });
             }
         });
     }
@@ -801,8 +1173,17 @@ public static Intent createIntent(android.content.Context context,
         TextView itemPause = menuDialog.findViewById(R.id.itemPause);
         itemPause.setText(isPaused ? "Resume" : "Pause");
         itemPause.setOnClickListener(v -> {
+            EngagementTracker.getInstance().recordClick("menu");
+            ClickCounter.getInstance(EmulationActivity.this).recordClick();
             menuDialog.dismiss();
-            togglePause();
+            if (isPaused) {
+                // Show interstitial FIRST, then resume only after it is
+                // dismissed — otherwise the game runs behind the ad.
+                AdManager.getInstance().showInterstitialThen(
+                    EmulationActivity.this, () -> togglePause());
+            } else {
+                togglePause();
+            }
         });
 
         boolean ffActive = emulatorService != null && emulatorService.isFastForwardActive();
@@ -822,6 +1203,8 @@ public static Intent createIntent(android.content.Context context,
         rewindMenuItem.setAlpha(isPaused ? 0.4f : 1.0f);
 
         itemSaveState.setOnClickListener(v -> {
+            EngagementTracker.getInstance().recordClick("save_load");
+            ClickCounter.getInstance(EmulationActivity.this).recordClick();
             menuDialog.dismiss();
             if (emulatorService != null && emulatorService.isRunning()) {
                 emulatorService.pauseAndWait();
@@ -831,6 +1214,8 @@ public static Intent createIntent(android.content.Context context,
         });
 
         itemLoadState.setOnClickListener(v -> {
+            EngagementTracker.getInstance().recordClick("save_load");
+            ClickCounter.getInstance(EmulationActivity.this).recordClick();
             menuDialog.dismiss();
             if (emulatorService != null && emulatorService.isRunning()) {
                 emulatorService.pauseAndWait();
@@ -840,6 +1225,8 @@ public static Intent createIntent(android.content.Context context,
         });
 
         itemFastForward.setOnClickListener(v -> {
+            EngagementTracker.getInstance().recordClick("ff");
+            ClickCounter.getInstance(EmulationActivity.this).recordClick();
             if (!isPaused) {
                 toggleFastForward();
                 boolean nowActive = emulatorService != null && emulatorService.isFastForwardActive();
@@ -848,6 +1235,8 @@ public static Intent createIntent(android.content.Context context,
         });
 
         itemSlowMotion.setOnClickListener(v -> {
+            EngagementTracker.getInstance().recordClick("sm");
+            ClickCounter.getInstance(EmulationActivity.this).recordClick();
             if (!isPaused) {
                 toggleSlowMotion();
                 boolean nowActive = emulatorService != null && emulatorService.isSlowMotionActive();
@@ -856,6 +1245,8 @@ public static Intent createIntent(android.content.Context context,
         });
 
         rewindMenuItem.setOnClickListener(v -> {
+            EngagementTracker.getInstance().recordClick("rewind");
+            ClickCounter.getInstance(EmulationActivity.this).recordClick();
             if (!isPaused) {
                 performRewindStep();
             }
@@ -863,10 +1254,13 @@ public static Intent createIntent(android.content.Context context,
 
         itemSettings.setOnClickListener(v -> {
             menuDialog.dismiss();
+            pauseForSettings();
             startActivity(new Intent(this, SettingsActivity.class));
         });
 
         itemExit.setOnClickListener(v -> {
+            EngagementTracker.getInstance().recordClick("menu");
+            ClickCounter.getInstance(EmulationActivity.this).recordClick();
             menuDialog.dismiss();
             stopEmulation();
             finish();
@@ -1281,6 +1675,9 @@ public static Intent createIntent(android.content.Context context,
             int depthSeconds = settingsHelper.getRewindDepth();
             emulatorService.setRewindDepth(depthSeconds);
         }
+
+        // Stretch-to-fullscreen (syncs with the on-screen toggle and settings preference)
+        setStretchFullscreen(settingsHelper.isStretchFullscreenEnabled());
     }
 
     private void enableImmersiveMode() {

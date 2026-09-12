@@ -31,6 +31,7 @@ public class SettingsActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         EdgeToEdgeHelper.enableEdgeToEdge(this);
+        getWindow().setBackgroundDrawableResource(R.color.md_surface);
         setContentView(R.layout.activity_settings);
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content), (v, insets) -> {

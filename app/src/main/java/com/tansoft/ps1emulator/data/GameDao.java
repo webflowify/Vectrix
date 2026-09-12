@@ -29,6 +29,9 @@ public interface GameDao {
     @Query("SELECT * FROM games ORDER BY lastPlayedDate DESC")
     LiveData<List<GameEntity>> getAllGames();
 
+    @Query("SELECT * FROM games")
+    List<GameEntity> getAllGamesSync();
+
     @Query("SELECT * FROM games WHERE romPath = :path LIMIT 1")
     GameEntity getByPath(String path);
 

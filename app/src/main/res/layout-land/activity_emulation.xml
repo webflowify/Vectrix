@@ -36,34 +36,53 @@
         android:layout_height="match_parent"
         android:visibility="visible" />
 
-    <ImageButton
-        android:id="@+id/btnFullscreen"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_gravity="top|start"
-        android:layout_margin="12dp"
-        android:src="@drawable/ic_fullscreen_enter"
-        android:background="@drawable/round_button_bg"
-        android:contentDescription="Toggle fullscreen"
-        android:elevation="4dp" />
-
+    <!-- Bottom-left pair (left to right): btnMenu → btnFullscreen, 20dp gap -->
     <ImageButton
         android:id="@+id/btnMenu"
         android:layout_width="48dp"
         android:layout_height="48dp"
-        android:layout_gravity="top|end"
-        android:layout_margin="12dp"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="12dp"
+        android:layout_marginBottom="12dp"
         android:src="@android:drawable/ic_menu_manage"
         android:background="@drawable/round_button_bg"
         android:contentDescription="Menu"
         android:elevation="4dp" />
 
     <ImageButton
+        android:id="@+id/btnFullscreen"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="80dp"
+        android:layout_marginBottom="12dp"
+        android:src="@drawable/ic_fullscreen_enter"
+        android:background="@drawable/round_button_bg"
+        android:contentDescription="Toggle fullscreen"
+        android:elevation="4dp" />
+
+    <TextView
+        android:id="@+id/fullscreen_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="80dp"
+        android:layout_marginBottom="64dp"
+        android:textSize="12sp"
+        android:textColor="@android:color/white"
+        android:text=""
+        android:visibility="gone" />
+
+    <!-- Bottom-right control cluster (rightmost → leftward):
+         btnFastForward → btnRewind → btnSlowMotion -->
+
+    <ImageButton
         android:id="@+id/btnFastForward"
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:layout_gravity="bottom|end"
-        android:layout_margin="12dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="12dp"
         android:src="@android:drawable/ic_media_ff"
         android:background="@drawable/round_button_bg"
         android:contentDescription="Fast Forward"
@@ -82,19 +101,20 @@
         android:visibility="gone" />
 
     <ImageButton
-        android:id="@+id/btnSlowMotion"
+        android:id="@+id/btnRewind"
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:layout_gravity="bottom|end"
         android:layout_marginEnd="68dp"
         android:layout_marginBottom="12dp"
-        android:src="@android:drawable/ic_media_rew"
+        android:src="@drawable/ic_rewind"
         android:background="@drawable/round_button_bg"
-        android:contentDescription="Slow Motion"
-        android:elevation="4dp" />
+        android:contentDescription="Rewind"
+        android:elevation="4dp"
+        android:saveEnabled="false" />
 
     <TextView
-        android:id="@+id/slow_motion_text"
+        android:id="@+id/rewind_text"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
@@ -104,6 +124,32 @@
         android:textColor="@color/neon_pink"
         android:text=""
         android:visibility="gone" />
+
+    <ImageButton
+        android:id="@+id/btnSlowMotion"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="124dp"
+        android:layout_marginBottom="12dp"
+        android:src="@drawable/ic_slow_motion"
+        android:background="@drawable/round_button_bg"
+        android:contentDescription="Slow Motion"
+        android:elevation="4dp" />
+
+    <TextView
+        android:id="@+id/slow_motion_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="124dp"
+        android:layout_marginBottom="64dp"
+        android:textSize="12sp"
+        android:textColor="@color/neon_pink"
+        android:text=""
+        android:visibility="gone" />
+
+    <include layout="@layout/progress_overlay" />
 
     <TextView
         android:id="@+id/fps_text"
@@ -115,7 +161,5 @@
         android:textColor="@color/neon_green"
         android:text="FPS: --"
         android:visibility="visible" />
-
-    <include layout="@layout/progress_overlay" />
 
 </FrameLayout>

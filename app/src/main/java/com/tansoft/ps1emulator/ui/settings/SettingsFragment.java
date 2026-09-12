@@ -103,6 +103,11 @@ public class SettingsFragment extends PreferenceFragmentCompat
                 // emulation starts or when the setting changes during gameplay.
                 break;
             }
+            case "stretch_fullscreen": {
+                // Stretch-to-fullscreen is applied by EmulationActivity.applySettings()
+                // when the user returns from the settings overlay.
+                break;
+            }
         }
     }
 

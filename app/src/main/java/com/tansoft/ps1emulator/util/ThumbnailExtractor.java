@@ -34,6 +34,7 @@ public class ThumbnailExtractor {
     private static final int THUMBNAIL_WIDTH = 400;
     private static final int THUMBNAIL_HEIGHT = 300;
     private static final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private static final String THUMBNAIL_EXTENSION = ".webp";
 
     private static final int[] GRADIENT_COLORS = {
             0xFFE53935, 0xFF1E88E5, 0xFF43A047, 0xFFFB8C00,
@@ -87,7 +88,7 @@ public class ThumbnailExtractor {
         canvas.drawRect(0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, gradientPaint);
 
         Paint patternPaint = new Paint();
-        patternPaint.setColor(Color.argb(30, 255, 255, 255));
+        patternPaint.setColor(0x33FFFFFF);
         for (int i = 0; i < 8; i++) {
             float x = (float) (Math.random() * THUMBNAIL_WIDTH);
             float y = (float) (Math.random() * THUMBNAIL_HEIGHT);
@@ -139,12 +140,12 @@ public class ThumbnailExtractor {
         if (!dir.exists()) {
             dir.mkdirs();
         }
-        return new File(dir, "game_" + gameId + ".jpg");
+        return new File(dir, "game_" + gameId + THUMBNAIL_EXTENSION);
     }
 
     private static void saveBitmap(Bitmap bitmap, File file) throws IOException {
         try (FileOutputStream fos = new FileOutputStream(file)) {
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 85, fos);
+            bitmap.compress(Bitmap.CompressFormat.WEBP, 90, fos);
         }
     }
 
@@ -153,5 +154,38 @@ public class ThumbnailExtractor {
         if (file.exists()) {
             file.delete();
         }
+    }
+
+    public static void migrateOldThumbnails(Context context) {
+        File dir = new File(context.getFilesDir(), "thumbnails");
+        if (!dir.exists() || !dir.isDirectory()) {
+            return;
+        }
+
+        File[] oldFiles = dir.listFiles((d, name) -> name.endsWith(".png"));
+        if (oldFiles == null || oldFiles.length == 0) {
+            return;
+        }
+
+        int deleted = 0;
+        for (File oldFile : oldFiles) {
+            if (oldFile.delete()) {
+                deleted++;
+            }
+        }
+
+        if (deleted > 0) {
+            android.util.Log.i("ThumbnailExtractor",
+                    "Migrated thumbnails: deleted " + deleted + " old .png files");
+        }
+    }
+
+    public static String getLegacyPngPath(String currentPath) {
+        if (currentPath == null) return null;
+        int dotIndex = currentPath.lastIndexOf('.');
+        if (dotIndex > 0) {
+            return currentPath.substring(0, dotIndex) + ".png";
+        }
+        return currentPath + ".png";
     }
 }

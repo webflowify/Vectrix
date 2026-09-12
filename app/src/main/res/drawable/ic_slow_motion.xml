@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!--
+        Snail layout (24x24 viewport):
+        - Shell dome: half-circle centered at (15, 15), radius 5, spans x=10..20, y=10..15
+        - Body: slug from x=3 to x=22, y=15..18, with head taper at left
+        - Eye stalks: from head (x=5, x=8) up to y=9, with ball tips
+    -->
+
+    <!-- Body: slug shape, head tapers left, tail right, top at y=15 meets shell base -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3,17.5 Q3,15 6,15 L10,15 L21,15 Q22.5,15 22.5,16.5 Q22.5,18 21,18 L6,18 Q3,18 3,17.5 Z" />
+
+    <!-- Shell: filled dome (upper half of circle) -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M10,15 A5,5 0 0,1 20,15 Z" />
+
+    <!-- Shell inner spiral rings for detail -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#44000000"
+        android:strokeWidth="0.7"
+        android:pathData="M12,15 A3,3 0 0,1 18,15" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#44000000"
+        android:strokeWidth="0.7"
+        android:pathData="M13.5,15 A1.5,1.5 0 0,1 16.5,15" />
+
+    <!-- Left eye stalk (from head, goes up) -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.3"
+        android:strokeLineCap="round"
+        android:pathData="M5.5,15 L4,9.5" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M4,9.5 m-1.3,0 a1.3,1.3 0 1,1 2.6,0 a1.3,1.3 0 1,1 -2.6,0" />
+
+    <!-- Right eye stalk (from head, goes up) -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.3"
+        android:strokeLineCap="round"
+        android:pathData="M8,15 L8.5,9.5" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M8.5,9.5 m-1.3,0 a1.3,1.3 0 1,1 2.6,0 a1.3,1.3 0 1,1 -2.6,0" />
+</vector>

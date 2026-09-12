@@ -51,6 +51,10 @@ public class SettingsHelper {
         return prefs.getBoolean("vpad_visible", true);
     }
 
+    public boolean isStretchFullscreenEnabled() {
+        return prefs.getBoolean("stretch_fullscreen", false);
+    }
+
     public int getVpadOpacity() {
         return prefs.getInt("vpad_opacity", 70);
     }

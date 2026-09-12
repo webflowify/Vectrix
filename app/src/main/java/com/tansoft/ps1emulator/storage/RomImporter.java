@@ -457,9 +457,27 @@ public final class RomImporter {
             if (dotIndex > 0) {
                 displayName = displayName.substring(0, dotIndex);
             }
+            displayName = cleanGameTitle(displayName);
         }
 
         return displayName != null ? displayName : "Unknown Game";
+    }
+
+    public static String cleanGameTitle(String raw) {
+        if (raw == null || raw.isEmpty()) return "Unknown Game";
+
+        String title = raw.replace('_', ' ');
+
+        title = title.replaceAll("\\s*\\([^)]*\\)\\s*", " ");
+
+        title = title.replaceAll("\\s+", " ").trim();
+
+        if (title.isEmpty()) {
+            title = raw.replaceAll("\\s*\\([^)]*\\)\\s*", " ").trim();
+            if (title.isEmpty()) title = raw.trim();
+        }
+
+        return title;
     }
 
     // ── Disc ID extraction ──

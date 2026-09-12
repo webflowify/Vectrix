@@ -811,11 +811,30 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeSaveState(
     // Screenshot: capture actual framebuffer (XRGB8888 -> RGBA)
     uint32_t sw = 0, sh = 0;
     uint8_t* screenshot = capture_framebuffer_from(sFramebuffer, sFbWidth, sFbHeight, &sw, &sh);
+    // Build thumbnail PNG path: strip ".psst" suffix so slot_0.psst -> slot_0.png
+    // (Java looks for slot_<N>.png, NOT slot_<N>.psst.png)
     char png_path[1024];
-    snprintf(png_path, sizeof(png_path), "%s.png", path);
-    write_png(png_path, screenshot, sw, sh);
+    size_t path_len = strlen(path);
+    if (path_len > 5 && strcmp(path + path_len - 5, ".psst") == 0) {
+        snprintf(png_path, sizeof(png_path), "%.*s.png", (int)(path_len - 5), path);
+    } else {
+        snprintf(png_path, sizeof(png_path), "%s.png", path);
+    }
+    LOGI("nativeSaveState: screenshot fb=%ux%u captured=%p png='%s'",
+         sFbWidth, sFbHeight, (void*)screenshot, png_path);
+    if (screenshot) {
+        int png_ok = write_png(png_path, screenshot, sw, sh);
+        LOGI("nativeSaveState: write_png result=%d path='%s' w=%u h=%u bytes=%u",
+             png_ok, png_path, sw, sh, sw * sh * 4);
+        if (png_ok != 0) {
+            LOGE("nativeSaveState: write_png FAILED (result=%d) for '%s'", png_ok, png_path);
+        }
+    } else {
+        LOGE("nativeSaveState: screenshot capture returned NULL — PNG NOT written");
+    }
 
     int result = core_save_state(path, &state, screenshot, sw, sh);
+    LOGI("nativeSaveState: core_save_state returned %d", result);
     free(screenshot);
 
     // v5: Append extra state section (SIO, CD-ROM, counters, MDEC, dynarec, pad)
@@ -1243,15 +1262,15 @@ static bool restoreRewindSnapshot() {
     }
 
     events_restore();
-        // Notify CPU core that RAM/state was replaced.
-        // Use R3000ACPU_NOTIFY_AFTER_LOAD (not _AFTER_LOAD_STATE): the latter relies
-        // on ndrc_freeze() having already invalidated the ari64 translation cache,
-        // which is only valid if the cache has not wrapped since the snapshot was
-        // captured. Over a long session the translation cache wraps, leaving the
-        // saved block list pointing at overwritten generated code -> SIGSEGV in
-        // retro_run. _AFTER_LOAD runs ari64_reset() which invalidates all translated
-        // blocks so they are recompiled cleanly from the restored RAM.
-        safeCpuNotify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
+    // Notify CPU core that RAM/state was replaced.
+    // Use R3000ACPU_NOTIFY_AFTER_LOAD (not _AFTER_LOAD_STATE): the latter relies
+    // on ndrc_freeze() having already invalidated the ari64 translation cache,
+    // which is only valid if the cache has not wrapped since the snapshot was
+    // captured. Over a long session the translation cache wraps, leaving the
+    // saved block list pointing at overwritten generated code -> SIGSEGV in
+    // retro_run. _AFTER_LOAD runs ari64_reset() which invalidates all translated
+    // blocks so they are recompiled cleanly from the restored RAM.
+    safeCpuNotify(R3000ACPU_NOTIFY_AFTER_LOAD, NULL);
 
     // Pop after successful restore
     gRewindBuffer.pop();
@@ -1284,8 +1303,8 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeSetRewindInterval(
         jint frames) {
     if (frames < 1) frames = 1;
     if (frames > 300) frames = 300;
-    sRewindInterval.store(frames, std::memory_order_relaxed);
-    sRewindFrameCounter.store(0, std::memory_order_relaxed);
+    sRewindInterval = frames;
+    sRewindFrameCounter = 0;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
@@ -1499,8 +1518,13 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeEmulateFrame(
         sRewindFrameCounter = 0;
     }
 
-    // Rewind: capture snapshot at configured interval
-    if (sRewindEnabled.load() && !sFastForwardEnabled.load()) {
+    // Rewind: capture snapshot at configured interval.
+    // Snapshots are captured regardless of fast-forward state so that the
+    // user can rewind even when FF is active.  Capturing during FF adds a
+    // small per-frame overhead (~0.5 ms for the state copy), which is
+    // negligible compared to the multiple retro_run() calls FF already
+    // performs.
+    if (sRewindEnabled.load()) {
         sRewindFrameCounter++;
         if (sRewindFrameCounter >= sRewindInterval) {
             sRewindFrameCounter = 0;
@@ -1534,12 +1558,12 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeEmulateFrame(
         return 0;
     }
 
-    // Straight copy — no colour conversion. The core already gave us XRGB8888;
+    // Straight copy � no colour conversion. The core already gave us XRGB8888;
     // the byte order difference against GL_RGBA is corrected for free by a
     // .bgra swizzle in the fragment shader.
     //
     // Rows are packed tightly at `w` (not at a fixed stride) because GLES 2.0
-    // has no GL_UNPACK_ROW_LENGTH — glTexSubImage2D can only read a tightly
+    // has no GL_UNPACK_ROW_LENGTH � glTexSubImage2D can only read a tightly
     // packed w*h block.
     {
         ScopedTrace _trace("Emulation: framebuffer copy");
@@ -1557,9 +1581,4 @@ Java_com_tansoft_ps1emulator_core_EmulatorBridge_nativeEmulateFrame(
     jint result = static_cast<jint>((w << 16) | h);
     env->PopLocalFrame(nullptr);
     return result;
-}
-        }
-    }
-
-    return static_cast<jint>((w << 16) | h);
 }

@@ -170,6 +170,7 @@
             android:layout_height="match_parent"
             android:clipToPadding="false"
             android:padding="16dp"
+            android:paddingBottom="16dp"
             android:visibility="visible" />
 
         <LinearLayout
@@ -212,16 +213,14 @@
 
     </FrameLayout>
 
-    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-        android:id="@+id/fab_add_rom"
-        android:layout_width="wrap_content"
+    <!-- Banner Ad — bottom of screen -->
+    <com.google.android.gms.ads.AdView
+        android:id="@+id/adViewBanner"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
-        android:text="Add Game"
-        android:contentDescription="Add ROM"
-        app:icon="@android:drawable/ic_input_add"
-        app:backgroundTint="@color/md_primary"
-        android:textColor="@color/md_on_primary" />
+        android:layout_gravity="bottom"
+        app:adSize="SMART_BANNER"
+        app:adUnitId="@string/ad_unit_banner" />
+
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

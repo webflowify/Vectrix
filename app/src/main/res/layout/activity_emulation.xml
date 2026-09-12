@@ -81,17 +81,45 @@
         android:text=""
         android:visibility="gone" />
 
-<!--    <ImageButton-->
-<!--        android:id="@+id/btnSlowMotion"-->
-<!--        android:layout_width="48dp"-->
-<!--        android:layout_height="48dp"-->
-<!--        android:layout_gravity="bottom|end"-->
-<!--        android:layout_marginEnd="68dp"-->
-<!--        android:layout_marginBottom="12dp"-->
-<!--        android:src="@android:drawable/ic_media_rew"-->
-<!--        android:background="@drawable/round_button_bg"-->
-<!--        android:contentDescription="Slow Motion"-->
-<!--        android:elevation="4dp" />-->
+    <ImageButton
+        android:id="@+id/btnRewind"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="68dp"
+        android:layout_marginBottom="12dp"
+        android:src="@drawable/ic_rewind"
+        android:background="@drawable/round_button_bg"
+        android:contentDescription="Rewind"
+        android:elevation="4dp"
+        android:saveEnabled="false"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/rewind_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="68dp"
+        android:layout_marginBottom="64dp"
+        android:textSize="12sp"
+        android:textColor="@color/neon_pink"
+        android:text=""
+        android:visibility="gone" />
+
+    <!-- Slow motion button: hidden in portrait, shown in landscape via updateLayoutForOrientation() -->
+    <ImageButton
+        android:id="@+id/btnSlowMotion"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="68dp"
+        android:layout_marginBottom="12dp"
+        android:src="@drawable/ic_slow_motion"
+        android:background="@drawable/round_button_bg"
+        android:contentDescription="Slow Motion"
+        android:elevation="4dp"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/slow_motion_text"

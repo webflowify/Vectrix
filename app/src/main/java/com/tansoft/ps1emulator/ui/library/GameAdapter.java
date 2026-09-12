@@ -2,7 +2,7 @@
  * PS1 Emulator for Android
  * Copyright (C) 2024-2026 MST. ROKIEA SULTANA
  * 2 No. College Gate Bylane, Mymensingh - 2207, Bangladesh (BD)
-*
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; version 2 only.
@@ -19,31 +19,30 @@ import android.os.Build;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.resource.bitmap.CenterCrop;
-import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.gms.ads.nativead.NativeAd;
+import com.google.android.gms.ads.nativead.NativeAdView;
 import com.tansoft.ps1emulator.R;
+import com.tansoft.ps1emulator.ads.AdsConfig;
 import com.tansoft.ps1emulator.data.GameEntity;
 
-import java.io.File;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
-public class GameAdapter extends RecyclerView.Adapter<GameAdapter.ViewHolder> {
+public class GameAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     public interface OnGameClickListener {
         void onGameClick(GameEntity game, View cardView);
@@ -53,24 +52,47 @@ public class GameAdapter extends RecyclerView.Adapter<GameAdapter.ViewHolder> {
         void onGameLongClick(GameEntity game, View cardView);
     }
 
+    public interface OnGameSettingsClickListener {
+        void onGameSettingsClick(GameEntity game, View cardView);
+    }
+
     private List<GameEntity> games = new ArrayList<>();
     private final OnGameClickListener listener;
     private final OnGameLongClickListener longClickListener;
+    private final OnGameSettingsClickListener settingsClickListener;
+
+    private static final int TYPE_GAME = 0;
+    private static final int TYPE_NATIVE_AD = 1;
+    private static final int AD_INTERVAL = 5;
 
     private static final int[] PLACEHOLDER_COLORS = {
             0xFFE53935, 0xFF1E88E5, 0xFF43A047, 0xFFFB8C00,
             0xFF8E24AA, 0xFF00ACC1, 0xFF6D4C41, 0xFF546E7A
     };
 
-    public GameAdapter(OnGameClickListener listener, OnGameLongClickListener longListener) {
+    private List<NativeAd> nativeAds = new ArrayList<>();
+
+    public void setNativeAds(List<NativeAd> ads) {
+        this.nativeAds = ads;
+        notifyDataSetChanged();
+    }
+
+    public GameAdapter(OnGameClickListener listener, OnGameLongClickListener longListener,
+                       OnGameSettingsClickListener settingsListener) {
         this.listener = listener;
         this.longClickListener = longListener;
+        this.settingsClickListener = settingsListener;
         setHasStableIds(true);
     }
 
     @Override
     public long getItemId(int position) {
-        return games.get(position).id;
+        if (getItemViewType(position) == TYPE_NATIVE_AD) {
+            return -1;
+        }
+        int gamePos = getGamePosition(position);
+        if (gamePos < 0 || gamePos >= games.size()) return -1;
+        return games.get(gamePos).id;
     }
 
     public void submitList(List<GameEntity> newGames) {
@@ -78,6 +100,37 @@ public class GameAdapter extends RecyclerView.Adapter<GameAdapter.ViewHolder> {
         this.games = newGames != null ? newGames : new ArrayList<>();
         DiffUtil.DiffResult diff = DiffUtil.calculateDiff(new GameDiffCallback(oldList, this.games));
         diff.dispatchUpdatesTo(this);
+    }
+
+    @Override
+    public int getItemViewType(int position) {
+        if (games.size() >= AdsConfig.NATIVE_AD_MIN_GAMES
+                && position > 0 && position % AD_INTERVAL == 0
+                && !nativeAds.isEmpty()) {
+            int adIndex = (position / AD_INTERVAL) - 1;
+            if (adIndex < nativeAds.size()) {
+                return TYPE_NATIVE_AD;
+            }
+        }
+        return TYPE_GAME;
+    }
+
+    @Override
+    public int getItemCount() {
+        int gameCount = games.size();
+        if (gameCount < AdsConfig.NATIVE_AD_MIN_GAMES || nativeAds.isEmpty()) {
+            return gameCount;
+        }
+        int adCount = Math.min(nativeAds.size(), gameCount / AD_INTERVAL);
+        return gameCount + adCount;
+    }
+
+    public int getGamePosition(int adapterPosition) {
+        if (getItemViewType(adapterPosition) == TYPE_NATIVE_AD) {
+            return -1;
+        }
+        int adCountBefore = adapterPosition / (AD_INTERVAL + 1);
+        return adapterPosition - adCountBefore;
     }
 
     private static class GameDiffCallback extends DiffUtil.Callback {
@@ -113,60 +166,61 @@ public class GameAdapter extends RecyclerView.Adapter<GameAdapter.ViewHolder> {
 
     @NonNull
     @Override
-    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        if (viewType == TYPE_NATIVE_AD) {
+            View view = LayoutInflater.from(parent.getContext())
+                    .inflate(R.layout.item_native_ad, parent, false);
+            return new NativeAdViewHolder(view);
+        }
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_game, parent, false);
         return new ViewHolder(view);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        GameEntity game = games.get(position);
-        holder.titleView.setText(game.title);
-
-        if (game.discId != null && !game.discId.isEmpty()) {
-            holder.discIdView.setVisibility(View.VISIBLE);
-            holder.discIdView.setText(game.discId);
-        } else {
-            holder.discIdView.setVisibility(View.GONE);
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+        if (holder instanceof NativeAdViewHolder) {
+            NativeAd ad = nativeAds.get((position / AD_INTERVAL) - 1);
+            ((NativeAdViewHolder) holder).bind(ad);
+            return;
         }
 
-        if (game.thumbnailPath != null && !game.thumbnailPath.isEmpty()) {
-            File thumbnailFile = new File(game.thumbnailPath);
-            if (thumbnailFile.exists()) {
-                Glide.with(holder.itemView.getContext())
-                        .load(thumbnailFile)
-                        .transform(new CenterCrop(), new RoundedCorners(24))
-                        .placeholder(R.drawable.game_card_gradient_overlay)
-                        .error(R.drawable.game_card_gradient_overlay)
-                        .into(holder.placeholderView);
-                holder.placeholderText.setVisibility(View.GONE);
-            } else {
-                setPlaceholderWithInitial(holder, game);
-            }
-        } else {
-            setPlaceholderWithInitial(holder, game);
-        }
+        ViewHolder gameHolder = (ViewHolder) holder;
+        int gamePos = getGamePosition(position);
+        if (gamePos < 0 || gamePos >= games.size()) return;
+        GameEntity game = games.get(gamePos);
+        gameHolder.titleView.setText(game.title);
 
+        Glide.with(holder.itemView.getContext()).clear(gameHolder.placeholderBg);
+        gameHolder.placeholderText.setVisibility(View.GONE);
+        setPlaceholderWithInitial(gameHolder, game);
+        gameHolder.playOverlay.setVisibility(View.VISIBLE);
+
+        String timeText;
         if (game.lastPlayedDate > 0) {
             String relativeTime = getRelativeTimeString(game.lastPlayedDate);
-            holder.lastPlayedView.setText(relativeTime);
+            String playTime = formatPlayTime(game.totalPlayTimeMs);
+            timeText = relativeTime + " · " + playTime;
         } else {
-            holder.lastPlayedView.setText("Never played");
+            timeText = "Never played";
         }
-
-        String playTime = formatPlayTime(game.totalPlayTimeMs);
-        holder.playTimeView.setText(playTime);
+        gameHolder.lastPlayedView.setText(timeText);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            holder.cardView.setTransitionName("game_card_" + game.id);
+            gameHolder.cardView.setTransitionName("game_card_" + game.id);
         }
 
-        holder.itemView.setOnClickListener(v -> listener.onGameClick(game, holder.cardView));
+        gameHolder.settingsButton.setOnClickListener(v -> {
+            if (settingsClickListener != null) {
+                settingsClickListener.onGameSettingsClick(game, gameHolder.cardView);
+            }
+        });
 
-        holder.itemView.setOnLongClickListener(v -> {
+        gameHolder.cardView.setOnClickListener(v -> listener.onGameClick(game, gameHolder.cardView));
+
+        gameHolder.cardView.setOnLongClickListener(v -> {
             if (longClickListener != null) {
-                longClickListener.onGameLongClick(game, holder.cardView);
+                longClickListener.onGameLongClick(game, gameHolder.cardView);
                 return true;
             }
             return false;
@@ -174,30 +228,21 @@ public class GameAdapter extends RecyclerView.Adapter<GameAdapter.ViewHolder> {
     }
 
     private void setPlaceholderWithInitial(ViewHolder holder, GameEntity game) {
-        char firstLetter = game.title != null && !game.title.isEmpty()
-                ? game.title.charAt(0) : '?';
         GradientDrawable drawable = new GradientDrawable();
         drawable.setShape(GradientDrawable.RECTANGLE);
         drawable.setCornerRadius(16f);
         int colorIndex = (int) (game.id % PLACEHOLDER_COLORS.length);
         drawable.setColor(PLACEHOLDER_COLORS[colorIndex]);
-        holder.placeholderView.setImageDrawable(drawable);
-        holder.placeholderText.setVisibility(View.VISIBLE);
-        holder.placeholderText.setText(String.valueOf(firstLetter));
-    }
-
-    @Override
-    public int getItemCount() {
-        return games.size();
+        holder.placeholderBg.setImageDrawable(drawable);
     }
 
     private String formatPlayTime(long ms) {
         if (ms <= 0) return "0m";
-        
+
         long totalMinutes = TimeUnit.MILLISECONDS.toMinutes(ms);
         long hours = totalMinutes / 60;
         long minutes = totalMinutes % 60;
-        
+
         if (hours > 0) {
             return hours + "h " + minutes + "m";
         } else {
@@ -227,21 +272,21 @@ public class GameAdapter extends RecyclerView.Adapter<GameAdapter.ViewHolder> {
             Calendar cal = Calendar.getInstance();
             int currentMonth = cal.get(Calendar.MONTH);
             int currentYear = cal.get(Calendar.YEAR);
-            
+
             cal.setTimeInMillis(timestamp);
             int gameMonth = cal.get(Calendar.MONTH);
             int gameYear = cal.get(Calendar.YEAR);
-            
+
             int monthsDiff = (currentYear - gameYear) * 12 + (currentMonth - gameMonth);
             if (monthsDiff < 1) monthsDiff = 1;
             return monthsDiff + "mo ago";
         } else {
             Calendar cal = Calendar.getInstance();
             int currentYear = cal.get(Calendar.YEAR);
-            
+
             cal.setTimeInMillis(timestamp);
             int gameYear = cal.get(Calendar.YEAR);
-            
+
             int yearsDiff = currentYear - gameYear;
             if (yearsDiff < 1) yearsDiff = 1;
             return yearsDiff + "y ago";
@@ -251,21 +296,68 @@ public class GameAdapter extends RecyclerView.Adapter<GameAdapter.ViewHolder> {
     static class ViewHolder extends RecyclerView.ViewHolder {
         final MaterialCardView cardView;
         final TextView titleView;
-        final TextView discIdView;
-        final ImageView placeholderView;
-        final TextView placeholderText;
+        final FrameLayout placeholderView;
+        final ImageView placeholderBg;
         final TextView lastPlayedView;
-        final TextView playTimeView;
+        final ImageView settingsButton;
+        final ImageView playOverlay;
+        final TextView placeholderText;
 
         ViewHolder(View itemView) {
             super(itemView);
             cardView = itemView.findViewById(R.id.game_card);
             titleView = itemView.findViewById(R.id.game_title);
-            discIdView = itemView.findViewById(R.id.game_disc_id);
             placeholderView = itemView.findViewById(R.id.game_placeholder);
-            placeholderText = itemView.findViewById(R.id.game_placeholder_text);
+            placeholderBg = itemView.findViewById(R.id.game_placeholder_bg);
             lastPlayedView = itemView.findViewById(R.id.game_last_played);
-            playTimeView = itemView.findViewById(R.id.game_play_time);
+            settingsButton = itemView.findViewById(R.id.game_settings_button);
+            playOverlay = itemView.findViewById(R.id.game_play_overlay);
+            placeholderText = itemView.findViewById(R.id.game_placeholder_text);
+        }
+    }
+
+    static class NativeAdViewHolder extends RecyclerView.ViewHolder {
+        final NativeAdView nativeAdView;
+
+        NativeAdViewHolder(@NonNull View itemView) {
+            super(itemView);
+            nativeAdView = itemView.findViewById(R.id.nativeAdView);
+        }
+
+        void bind(NativeAd ad) {
+            TextView headline = itemView.findViewById(R.id.adHeadline);
+            ImageView icon = itemView.findViewById(R.id.adIcon);
+            MaterialButton cta = itemView.findViewById(R.id.adCallToAction);
+            TextView advertiser = itemView.findViewById(R.id.advertiser);
+
+            if (headline != null) headline.setText(ad.getHeadline());
+
+            if (ad.getIcon() != null && icon != null) {
+                icon.setImageDrawable(ad.getIcon().getDrawable());
+                icon.setVisibility(View.VISIBLE);
+            } else if (icon != null) {
+                icon.setVisibility(View.GONE);
+            }
+
+            if (ad.getCallToAction() != null && cta != null) {
+                cta.setText(ad.getCallToAction());
+                cta.setVisibility(View.VISIBLE);
+            } else if (cta != null) {
+                cta.setVisibility(View.GONE);
+            }
+
+            if (ad.getAdvertiser() != null && advertiser != null) {
+                advertiser.setText(ad.getAdvertiser());
+                advertiser.setVisibility(View.VISIBLE);
+            } else if (advertiser != null) {
+                advertiser.setVisibility(View.GONE);
+            }
+
+            nativeAdView.setHeadlineView(headline);
+            nativeAdView.setIconView(icon);
+            nativeAdView.setCallToActionView(cta);
+            nativeAdView.setAdvertiserView(advertiser);
+            nativeAdView.setNativeAd(ad);
         }
     }
 }

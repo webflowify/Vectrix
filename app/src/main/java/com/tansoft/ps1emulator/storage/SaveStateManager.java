@@ -22,7 +22,9 @@ import com.tansoft.ps1emulator.core.EmulatorBridge;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -55,9 +57,29 @@ public class SaveStateManager {
         File dir = getSaveDir(context, gameDiscId);
         dir.mkdirs();
         File file = getSaveFile(context, gameDiscId, slot);
-        android.util.Log.d(TAG, "saveState: path=" + file.getAbsolutePath() + " gameDiscId=" + gameDiscId + " slot=" + slot);
+        File pngFile = getThumbnailFile(context, gameDiscId, slot);
+        android.util.Log.d(TAG, "saveState: slot=" + slot
+            + " savePath=" + file.getAbsolutePath()
+            + " expectedPng=" + pngFile.getAbsolutePath()
+            + " gameDiscId=" + gameDiscId);
+
+        // Delete any stale cached PNG before saving so the overwrite always
+        // picks up the fresh thumbnail written by nativeSaveState().
+        if (pngFile.exists()) {
+            boolean deleted = pngFile.delete();
+            android.util.Log.d(TAG, "saveState: deleted old PNG=" + pngFile.getName() + " result=" + deleted);
+        }
+        // Also delete any orphaned .psst.png from the old buggy path
+        File orphanPng = new File(dir, FILE_PREFIX + slot + FILE_SUFFIX + ".png");
+        if (orphanPng.exists()) {
+            boolean deleted = orphanPng.delete();
+            android.util.Log.d(TAG, "saveState: deleted orphan PNG=" + orphanPng.getName() + " result=" + deleted);
+        }
+
         int result = EmulatorBridge.nativeSaveState(file.getAbsolutePath());
-        android.util.Log.d(TAG, "saveState: nativeSaveState returned " + result);
+        android.util.Log.d(TAG, "saveState: nativeSaveState returned " + result
+            + " pngNowExists=" + pngFile.exists()
+            + " pngSize=" + (pngFile.exists() ? pngFile.length() : 0));
         return result == 0;
     }
 
@@ -82,6 +104,13 @@ public class SaveStateManager {
     }
 
     public static Bitmap loadThumbnail(Context context, String gameDiscId, int slot) {
+        // First, check if we have a cached PNG thumbnail (faster, Glide-compatible)
+        File pngFile = getThumbnailFile(context, gameDiscId, slot);
+        if (pngFile.exists()) {
+            return BitmapFactory.decodeFile(pngFile.getAbsolutePath());
+        }
+
+        // Fall back to extracting from save state binary
         File file = getSaveFile(context, gameDiscId, slot);
         if (!file.exists()) return null;
 
@@ -108,13 +137,53 @@ public class SaveStateManager {
             byte[] rgba = new byte[pixelCount * 4];
             if (fis.read(rgba) != pixelCount * 4) return null;
 
+            // Use direct ByteBuffer for better memory efficiency
             Bitmap bmp = Bitmap.createBitmap(sw, sh, Bitmap.Config.ARGB_8888);
-            bmp.copyPixelsFromBuffer(java.nio.ByteBuffer.wrap(rgba));
+            ByteBuffer buffer = ByteBuffer.wrap(rgba);
+            bmp.copyPixelsFromBuffer(buffer);
+
+            // Cache as PNG for future Glide loads
+            saveThumbnailAsPng(bmp, pngFile);
+
             return bmp;
         } catch (IOException e) {
             e.printStackTrace();
             return null;
         }
+    }
+
+    /**
+     * Save a bitmap as a PNG file for Glide-compatible loading.
+     * This creates a cached version that can be loaded efficiently.
+     */
+    public static void saveThumbnailAsPng(Bitmap bitmap, File file) {
+        if (bitmap == null || file == null) return;
+        try (FileOutputStream fos = new FileOutputStream(file)) {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Get or load thumbnail as a file path for Glide loading.
+     * Returns null if no thumbnail exists.
+     */
+    public static String getThumbnailPath(Context context, String gameDiscId, int slot) {
+        File pngFile = getThumbnailFile(context, gameDiscId, slot);
+        if (pngFile.exists()) {
+            return pngFile.getAbsolutePath();
+        }
+
+        // Try to extract and cache
+        Bitmap bmp = loadThumbnail(context, gameDiscId, slot);
+        if (bmp != null) {
+            bmp.recycle();
+            if (pngFile.exists()) {
+                return pngFile.getAbsolutePath();
+            }
+        }
+        return null;
     }
 
     public static List<SlotInfo> listSlots(Context context, String gameDiscId) {
@@ -141,6 +210,22 @@ public class SaveStateManager {
 
         Collections.sort(slots, (a, b) -> Integer.compare(a.slot, b.slot));
         return slots;
+    }
+
+    /**
+     * Remove orphaned ".psst.png" files left by the old (incorrect) native
+     * PNG path that wrote slot_0.psst.png instead of slot_0.png.
+     * This is a one-time cleanup; calling it repeatedly is cheap.
+     */
+    public static void cleanupOrphanedPngs(Context context, String gameDiscId) {
+        File dir = getSaveDir(context, gameDiscId);
+        File[] orphans = dir.listFiles((d, name) -> name.endsWith(".psst.png"));
+        if (orphans != null) {
+            for (File f : orphans) {
+                android.util.Log.d(TAG, "cleanupOrphanedPngs: deleting orphan " + f.getName());
+                f.delete();
+            }
+        }
     }
 
     public static class SlotInfo {

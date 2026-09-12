@@ -16,9 +16,6 @@ package com.tansoft.ps1emulator.ui.savestate;
 
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -36,11 +33,20 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.bumptech.glide.request.RequestOptions;
+import com.bumptech.glide.signature.ObjectKey;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.tansoft.ps1emulator.R;
+import com.tansoft.ps1emulator.ads.AdsConfig;
+import com.tansoft.ps1emulator.ads.RewardedUnlockDialog;
+import com.tansoft.ps1emulator.ads.RewardedUnlockManager;
+import com.tansoft.ps1emulator.core.EmulatorService;
 import com.tansoft.ps1emulator.storage.SaveStateManager;
 import com.tansoft.ps1emulator.util.EdgeToEdgeHelper;
 
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -59,6 +65,9 @@ public class SaveStateActivity extends AppCompatActivity {
     private String gameDiscId;
     private String mode;
     private List<SaveStateManager.SlotInfo> slots;
+    private int nextUnlockedEmptySlot = -1; // first empty slot that is already unlocked (-1 = none)
+    private EmulatorService emulatorService;
+    private boolean serviceBound = false;
 
     public static Intent createIntent(Context context, String gameDiscId, boolean saveMode) {
         Intent intent = new Intent(context, SaveStateActivity.class);
@@ -72,6 +81,65 @@ public class SaveStateActivity extends AppCompatActivity {
         intent.putExtra(EXTRA_GAME_DISC_ID, gameDiscId);
         intent.putExtra(EXTRA_MODE, "browse");
         return intent;
+    }
+
+    // ── EmulatorService binding ──────────────────────────────────
+    // We own pause/resume: pause in onPause() so the emulation thread
+    // is guaranteed stopped before any native save/load call runs.
+    // onResume() resumes only if we didn't leave it paused intentionally.
+
+    private final android.content.ServiceConnection serviceConnection =
+        new android.content.ServiceConnection() {
+            @Override
+            public void onServiceConnected(android.content.ComponentName name,
+                                           android.os.IBinder binder) {
+                EmulatorService.LocalBinder localBinder =
+                    (EmulatorService.LocalBinder) binder;
+                emulatorService = localBinder.getService();
+                serviceBound = true;
+                android.util.Log.d(TAG, "EmulatorService bound: running="
+                    + (emulatorService != null && emulatorService.isRunning()));
+            }
+
+            @Override
+            public void onServiceDisconnected(android.content.ComponentName name) {
+                emulatorService = null;
+                serviceBound = false;
+            }
+        };
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Pause emulation so sFramebuffer is stable for any native save call
+        if (emulatorService != null && emulatorService.isRunning()) {
+            android.util.Log.d(TAG, "onPause: pausing emulation for save-state operation");
+            emulatorService.pause();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Do NOT auto-resume here — SaveStateActivity handles its own
+        // lifecycle. Emulation will be resumed by EmulationActivity when
+        // it regains focus (it calls emulatorService.resume() itself).
+        android.util.Log.d(TAG, "onResume: NOT resuming emulation — SaveStateActivity owns pause state");
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Unbind service
+        if (serviceBound) {
+            unbindService(serviceConnection);
+            serviceBound = false;
+        }
+        // Restore emulation if still running — defensive fallback
+        if (emulatorService != null && emulatorService.isRunning()) {
+            android.util.Log.d(TAG, "onDestroy: restoring emulation (defensive resume)");
+            emulatorService.resume();
+        }
     }
 
     @Override
@@ -100,6 +168,20 @@ public class SaveStateActivity extends AppCompatActivity {
             return;
         }
 
+        // Initialize RewardedUnlockManager for save slot gating
+        RewardedUnlockManager.getInstance().init(this);
+
+        // One-time grandfather migration: users who had save data in premium slots
+        // (3–9) before monetization was introduced keep those slots unlocked.
+        RewardedUnlockManager.getInstance().grandfatherExistingSaveSlots(this);
+
+        // Bind to EmulatorService to control pause/resume around native save/load
+        bindService(
+            new android.content.Intent(this, EmulatorService.class),
+            serviceConnection,
+            android.content.Context.BIND_AUTO_CREATE
+        );
+
         Toolbar toolbar = findViewById(R.id.toolbar);
         if (mode.equals("browse")) {
             toolbar.setTitle(getString(R.string.manage_saves_title, gameDiscId));
@@ -119,6 +201,9 @@ public class SaveStateActivity extends AppCompatActivity {
     }
 
     private void refreshSlots() {
+        // One-time cleanup of orphaned .psst.png files from the old buggy native path
+        SaveStateManager.cleanupOrphanedPngs(this, gameDiscId);
+
         slots = new ArrayList<>(SaveStateManager.listSlots(this, gameDiscId));
         android.util.Log.d(TAG, "refreshSlots: found " + slots.size() + " existing slots for gameDiscId=" + gameDiscId);
         // Ensure we show all 10 slots (including empty ones)
@@ -137,33 +222,141 @@ public class SaveStateActivity extends AppCompatActivity {
         // Sort by slot number
         slots.sort((a, b) -> Integer.compare(a.slot, b.slot));
 
+        // Find the first empty slot that is already unlocked (no ad required)
+        RewardedUnlockManager unlockMgr = RewardedUnlockManager.getInstance();
+        nextUnlockedEmptySlot = -1;
+        for (SaveStateManager.SlotInfo s : slots) {
+            if (!s.exists && unlockMgr.isSaveSlotUnlocked(gameDiscId, s.slot)) {
+                nextUnlockedEmptySlot = s.slot;
+                break;
+            }
+        }
+
+        // Update the "save to new slot" button text to reflect reality
+        updateSaveNewSlotButton();
+
+        // Log PNG state for all slots — critical for diagnosing stale-thumbnail bug
+        for (SaveStateManager.SlotInfo s : slots) {
+            File png = SaveStateManager.getThumbnailFile(SaveStateActivity.this, gameDiscId, s.slot);
+            android.util.Log.d(TAG, "refreshSlots: slot=" + s.slot
+                + " exists=" + s.exists
+                + " pngExists=" + png.exists()
+                + " pngLastMod=" + png.lastModified()
+                + " pngLen=" + png.length());
+        }
+
         adapter = new SlotAdapter(slots);
         slotGrid.setAdapter(adapter);
     }
 
+    private void updateSaveNewSlotButton() {
+        if (btnSaveNewSlot == null) return;
+        if (!"save".equals(mode)) {
+            btnSaveNewSlot.setVisibility(View.GONE);
+            return;
+        }
+        btnSaveNewSlot.setVisibility(View.VISIBLE);
+        if (nextUnlockedEmptySlot >= 0) {
+            btnSaveNewSlot.setText("Save to Slot " + (nextUnlockedEmptySlot + 1));
+        } else {
+            // All empty slots are locked — user must unlock one via rewarded ad first
+            btnSaveNewSlot.setText("All Slots Locked — Watch Ad to Unlock");
+        }
+    }
+
     private void saveToNewSlot() {
+        RewardedUnlockManager unlockMgr = RewardedUnlockManager.getInstance();
+
+        // 1. Prefer an empty slot that is already unlocked (no ad required)
         for (SaveStateManager.SlotInfo s : slots) {
-            if (!s.exists) {
+            if (!s.exists && unlockMgr.isSaveSlotUnlocked(gameDiscId, s.slot)) {
+                android.util.Log.d(TAG, "saveToNewSlot: using unlocked empty slot=" + s.slot);
                 performSave(s.slot);
                 return;
             }
         }
-        // All slots full — overwrite oldest
+
+        // 2. Find the first locked empty slot and unlock it (user taps again to save)
+        for (SaveStateManager.SlotInfo s : slots) {
+            if (!s.exists) {
+                android.util.Log.d(TAG, "saveToNewSlot: triggering unlock for locked empty slot=" + s.slot);
+                attemptUnlockOnly(s.slot);
+                return;
+            }
+        }
+
+        // 3. All slots have data — overwrite oldest (slots are always unlocked if they contain data)
         SaveStateManager.SlotInfo oldest = null;
         for (SaveStateManager.SlotInfo s : slots) {
             if (oldest == null || s.timestamp < oldest.timestamp) {
                 oldest = s;
             }
         }
-        if (oldest != null) performSave(oldest.slot);
+        if (oldest != null) {
+            android.util.Log.d(TAG, "saveToNewSlot: all slots full, overwriting oldest slot=" + oldest.slot);
+            performSave(oldest.slot);
+        }
+    }
+
+    /**
+     * Attempts to unlock a locked slot via rewarded video.
+     * After the ad the slot is simply unlocked and the UI refreshes.
+     * No save/load/overwrite action is performed — the user must tap the
+     * slot again to perform their intended action (the same behaviour as
+     * slots 0–2).
+     */
+    private void attemptUnlockOnly(int slot) {
+        RewardedUnlockManager unlockMgr = RewardedUnlockManager.getInstance();
+
+        if (unlockMgr.isSaveSlotUnlocked(gameDiscId, slot)) {
+            android.util.Log.d(TAG, "attemptUnlockOnly: slot=" + slot + " already unlocked");
+            return;
+        }
+
+        if (!unlockMgr.attemptUnlock(SaveStateActivity.this, "save_slot")) {
+            android.util.Log.w(TAG, "attemptUnlockOnly: slot=" + slot + " blocked (offline)");
+            return;
+        }
+
+        android.util.Log.d(TAG, "attemptUnlockOnly: showing rewarded dialog for slot=" + slot);
+        RewardedUnlockDialog.show(
+            SaveStateActivity.this,
+            "Save Slot " + (slot + 1),
+            "Watch a short video to permanently unlock this save slot for this game.",
+            () -> {
+                android.util.Log.d(TAG, "attemptUnlockOnly: slot=" + slot + " rewarded complete, unlocking only");
+                unlockMgr.unlockSaveSlot(gameDiscId, slot);
+                refreshSlots(); // unlock only — no save/overwrite
+            },
+            null);
+    }
+
+    /**
+     * @deprecated Use {@link #attemptUnlockOnly} instead. The rewarded-video
+     * flow must only unlock the slot; any save/load action must come from a
+     * deliberate second tap by the user.
+     */
+    @Deprecated
+    private void attemptUnlockAndPerform(int slot, Runnable onUnlocked) {
+        // Redirect to unlock-only behaviour to prevent silent overwrites.
+        attemptUnlockOnly(slot);
     }
 
     private void performSave(int slot) {
-        android.util.Log.d(TAG, "performSave: slot=" + slot + " gameDiscId=" + gameDiscId);
+        android.util.Log.d(TAG, "performSave: slot=" + slot + " gameDiscId=" + gameDiscId
+            + " serviceBound=" + serviceBound
+            + " running=" + (emulatorService != null && emulatorService.isRunning()));
         boolean ok = SaveStateManager.saveState(this, gameDiscId, slot);
-        android.util.Log.d(TAG, "performSave: saveState returned " + ok);
+        android.util.Log.d(TAG, "performSave: saveState returned " + ok + " for slot=" + slot);
         if (ok) {
-            android.util.Log.d(TAG, "performSave: save succeeded, refreshing slots");
+            android.util.Log.d(TAG, "performSave: save succeeded — checking PNG thumbnail");
+
+            // Verify PNG was actually written by native code
+            File pngFile = SaveStateManager.getThumbnailFile(this, gameDiscId, slot);
+            android.util.Log.d(TAG, "performSave: PNG exists=" + pngFile.exists()
+                + " lastModified=" + pngFile.lastModified()
+                + " length=" + pngFile.length());
+
             refreshSlots();
         } else {
             android.util.Log.w(TAG, "performSave: save FAILED for slot=" + slot);
@@ -319,6 +512,34 @@ public class SaveStateActivity extends AppCompatActivity {
         dialog.show();
     }
 
+    /**
+     * Perform the appropriate action for a slot based on current mode.
+     * Called after a slot is unlocked (or if already free).
+     */
+    private void performSlotAction(int slot) {
+        if (mode.equals("load")) {
+            confirmAndLoad(slot);
+        } else if (mode.equals("save")) {
+            // Check if slot already has data
+            for (SaveStateManager.SlotInfo s : slots) {
+                if (s.slot == slot && s.exists) {
+                    confirmAndOverwrite(slot);
+                    return;
+                }
+            }
+            // Empty slot — save directly
+            performSave(slot);
+        } else if (mode.equals("browse")) {
+            // For browse mode, show slot info
+            for (SaveStateManager.SlotInfo s : slots) {
+                if (s.slot == slot) {
+                    showSlotInfo(s);
+                    return;
+                }
+            }
+        }
+    }
+
     private String getSlotTimestamp(int slot) {
         for (SaveStateManager.SlotInfo s : slots) {
             if (s.slot == slot && s.exists && s.timestamp > 0) {
@@ -352,19 +573,58 @@ public class SaveStateActivity extends AppCompatActivity {
             SaveStateManager.SlotInfo info = slots.get(position);
             h.slotLabel.setText("Slot " + (info.slot + 1));
 
+            // Check if slot is locked (gated behind rewarded ad)
+            boolean isSlotLocked = !RewardedUnlockManager.getInstance()
+                    .isSaveSlotUnlocked(gameDiscId, info.slot);
+
+            // Show/hide lock icon and adjust alpha
+            if (isSlotLocked) {
+                h.lockIcon.setVisibility(View.VISIBLE);
+                h.thumbnail.setAlpha(0.5f);
+                h.emptyText.setAlpha(0.5f);
+            } else {
+                h.lockIcon.setVisibility(View.GONE);
+                h.thumbnail.setAlpha(1.0f);
+                h.emptyText.setAlpha(1.0f);
+            }
+
             if (info.exists) {
                 h.thumbnail.setVisibility(View.VISIBLE);
                 h.emptyText.setVisibility(View.GONE);
                 h.timestamp.setVisibility(View.VISIBLE);
 
-                recycleBitmapFromView(h.thumbnail);
-
-                Bitmap thumb = SaveStateManager.loadThumbnail(
+                String thumbnailPath = SaveStateManager.getThumbnailPath(
                         SaveStateActivity.this, gameDiscId, info.slot);
-                if (thumb != null) {
-                    h.thumbnail.setImageBitmap(thumb);
+
+                if (thumbnailPath != null) {
+                    File thumbFile = SaveStateManager.getThumbnailFile(
+                            SaveStateActivity.this, gameDiscId, info.slot);
+                    long lastModified = thumbFile.lastModified();
+                    long fileLength = thumbFile.length();
+
+                    android.util.Log.d(TAG, "Adapter bind slot=" + info.slot
+                        + " thumbnailPath=" + thumbnailPath
+                        + " exists=" + thumbFile.exists()
+                        + " lastModified=" + lastModified
+                        + " length=" + fileLength);
+
+                    // Clear the ImageView's Glide request (drops any in-flight or
+                    // memory-cached request keyed to the previous ObjectKey) before
+                    // starting the new load so we never flash the old thumbnail.
+                    Glide.with(SaveStateActivity.this).clear(h.thumbnail);
+
+                    Glide.with(SaveStateActivity.this)
+                            .load(thumbnailPath)
+                            .signature(new ObjectKey(lastModified))
+                            .apply(new RequestOptions()
+                                    .diskCacheStrategy(DiskCacheStrategy.ALL)
+                                    .override(200, 150)
+                                    .error(R.drawable.game_card_gradient_overlay))
+                            .into(h.thumbnail);
                 } else {
-                    h.thumbnail.setImageBitmap(null);
+                    android.util.Log.d(TAG, "Adapter bind slot=" + info.slot
+                        + " NO thumbnail path — falling back to gradient overlay");
+                    h.thumbnail.setImageResource(R.drawable.game_card_gradient_overlay);
                 }
 
                 String date = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
@@ -373,13 +633,14 @@ public class SaveStateActivity extends AppCompatActivity {
 
                 h.itemView.setOnClickListener(v -> {
                     android.util.Log.d(TAG, "Slot clicked: slot=" + info.slot + " exists=" + info.exists + " mode=" + mode);
-                    if (mode.equals("load")) {
-                        confirmAndLoad(info.slot);
-                    } else if (mode.equals("save")) {
-                        confirmAndOverwrite(info.slot);
-                    } else if (mode.equals("browse")) {
-                        showSlotInfo(info);
+
+                    if (!RewardedUnlockManager.getInstance()
+                            .isSaveSlotUnlocked(gameDiscId, info.slot)) {
+                        attemptUnlockOnly(info.slot);
+                        return;
                     }
+
+                    performSlotAction(info.slot);
                 });
                 h.itemView.setOnLongClickListener(v -> {
                     if (!mode.equals("browse")) {
@@ -392,10 +653,18 @@ public class SaveStateActivity extends AppCompatActivity {
                 h.emptyText.setVisibility(View.VISIBLE);
                 h.timestamp.setVisibility(View.GONE);
 
-                recycleBitmapFromView(h.thumbnail);
+                // Clear any existing image with Glide
+                Glide.with(SaveStateActivity.this).clear(h.thumbnail);
 
                 h.itemView.setOnClickListener(v -> {
                     android.util.Log.d(TAG, "Empty slot clicked: slot=" + info.slot + " mode=" + mode);
+
+                    if (!RewardedUnlockManager.getInstance()
+                            .isSaveSlotUnlocked(gameDiscId, info.slot)) {
+                        attemptUnlockOnly(info.slot);
+                        return;
+                    }
+
                     if (mode.equals("save")) {
                         performSave(info.slot);
                     }
@@ -407,7 +676,8 @@ public class SaveStateActivity extends AppCompatActivity {
         @Override
         public void onViewRecycled(@NonNull ViewHolder holder) {
             super.onViewRecycled(holder);
-            recycleBitmapFromView(holder.thumbnail);
+            // Glide handles bitmap recycling automatically
+            Glide.with(holder.itemView.getContext()).clear(holder.thumbnail);
         }
 
         @Override
@@ -418,6 +688,7 @@ public class SaveStateActivity extends AppCompatActivity {
         class ViewHolder extends RecyclerView.ViewHolder {
             TextView slotLabel, emptyText, timestamp;
             ImageView thumbnail;
+            ImageView lockIcon;
 
             ViewHolder(View itemView) {
                 super(itemView);
@@ -425,19 +696,8 @@ public class SaveStateActivity extends AppCompatActivity {
                 thumbnail = itemView.findViewById(R.id.slotThumbnail);
                 emptyText = itemView.findViewById(R.id.slotEmptyText);
                 timestamp = itemView.findViewById(R.id.slotTimestamp);
+                lockIcon = itemView.findViewById(R.id.lockIcon);
             }
         }
-    }
-
-    private static void recycleBitmapFromView(ImageView imageView) {
-        if (imageView == null) return;
-        Drawable drawable = imageView.getDrawable();
-        if (drawable instanceof BitmapDrawable) {
-            Bitmap bmp = ((BitmapDrawable) drawable).getBitmap();
-            if (bmp != null && !bmp.isRecycled()) {
-                bmp.recycle();
-            }
-        }
-        imageView.setImageDrawable(null);
     }
 }
