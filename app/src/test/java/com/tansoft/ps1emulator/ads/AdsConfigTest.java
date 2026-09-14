@@ -66,13 +66,13 @@ public class AdsConfigTest {
 
     @Test
     public void adUnitIds_sharePublisherId() {
-        String publisherId = "3053133134073218";
-        assertTrue(AdsConfig.getAdmobAppId().contains(publisherId));
-        assertTrue(AdsConfig.getAdUnitBanner().contains(publisherId));
-        assertTrue(AdsConfig.getAdUnitInterstitial().contains(publisherId));
-        assertTrue(AdsConfig.getAdUnitRewarded().contains(publisherId));
-        assertTrue(AdsConfig.getAdUnitNative().contains(publisherId));
-        assertTrue(AdsConfig.getAdUnitAppOpen().contains(publisherId));
+        String testPublisherId = "3940256099942544";
+        assertTrue(AdsConfig.getAdmobAppId().contains(testPublisherId));
+        assertTrue(AdsConfig.getAdUnitBanner().contains(testPublisherId));
+        assertTrue(AdsConfig.getAdUnitInterstitial().contains(testPublisherId));
+        assertTrue(AdsConfig.getAdUnitRewarded().contains(testPublisherId));
+        assertTrue(AdsConfig.getAdUnitNative().contains(testPublisherId));
+        assertTrue(AdsConfig.getAdUnitAppOpen().contains(testPublisherId));
     }
 
     @Test

@@ -391,23 +391,25 @@ public class AppOpenAdManager implements Application.ActivityLifecycleCallbacks 
     }
 
     private void onAppForegrounded(@NonNull Activity activity) {
-        // NEVER show app open ad during active gameplay
         if (activity instanceof EmulationActivity) {
             Log.d(TAG, "Skipping warm-start app open ad for EmulationActivity (gameplay protection)");
             return;
         }
 
-        // MainActivity handles its own cold-start splash via showWhenReady
         if (activity.getClass().getSimpleName().equals("MainActivity")) {
             return;
+        }
+
+        Context ctx = (appContext != null) ? appContext : activity.getApplicationContext();
+        if (AdsConfig.ENABLE_ADS && !isAdAvailable() && !isLoading
+                && NetworkHelper.isAvailable(ctx)) {
+            Log.d(TAG, "Foregrounded with no valid ad cache — pre-loading for next opportunity");
+            loadAd(ctx);
         }
 
         if (canShow() && !isShowingAd) {
             Log.d(TAG, "Showing warm-start app open ad on " + activity.getClass().getSimpleName());
             showAdWithCallback(activity, null);
-        } else {
-            // Replenish cache if needed
-            loadAd(activity);
         }
     }
 
@@ -418,6 +420,15 @@ public class AppOpenAdManager implements Application.ActivityLifecycleCallbacks 
             numStartedActivities = 0;
             Log.d(TAG, "App sent to background");
             foregroundDetectedPendingResume = false;
+
+            if (!isShowingAd) {
+                Context ctx = (appContext != null) ? appContext : activity.getApplicationContext();
+                if (AdsConfig.ENABLE_ADS && !isAdAvailable() && !isLoading
+                        && NetworkHelper.isAvailable(ctx)) {
+                    Log.d(TAG, "Backgrounding with no valid ad cache — pre-loading for next foreground");
+                    loadAd(ctx);
+                }
+            }
         }
     }
 

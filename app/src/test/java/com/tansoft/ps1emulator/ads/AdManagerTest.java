@@ -184,6 +184,53 @@ public class AdManagerTest {
         assertTrue(ran.get());
     }
 
+    // ── Online Ad-Load Failure Fallback ────────────────────────
+
+    @Test
+    public void isOnlineButRewardedAdFailed_whenOnlineAndAdFailed_returnsTrue() throws Exception {
+        setField("rewardedAd", null);
+        setField("rewardedAdLoadFailed", true);
+        setField("dailyRewardedCount", 0);
+        setField("networkAvailableOverride", true);
+        assertTrue(manager.isOnlineButRewardedAdFailed());
+    }
+
+    @Test
+    public void isOnlineButRewardedAdFailed_whenAdLoaded_returnsFalse() throws Exception {
+        setField("rewardedAd", mock(com.google.android.gms.ads.rewarded.RewardedAd.class));
+        setField("rewardedAdLoadFailed", true);
+        setField("dailyRewardedCount", 0);
+        setField("networkAvailableOverride", true);
+        assertFalse(manager.isOnlineButRewardedAdFailed());
+    }
+
+    @Test
+    public void isOnlineButRewardedAdFailed_whenOffline_returnsFalse() throws Exception {
+        setField("rewardedAd", null);
+        setField("rewardedAdLoadFailed", true);
+        setField("dailyRewardedCount", 0);
+        setField("networkAvailableOverride", false);
+        assertFalse(manager.isOnlineButRewardedAdFailed());
+    }
+
+    @Test
+    public void isOnlineButRewardedAdFailed_atDailyCap_returnsFalse() throws Exception {
+        setField("rewardedAd", null);
+        setField("rewardedAdLoadFailed", true);
+        setField("dailyRewardedCount", AdsConfig.MAX_REWARDED_PER_DAY);
+        setField("networkAvailableOverride", true);
+        assertFalse(manager.isOnlineButRewardedAdFailed());
+    }
+
+    @Test
+    public void isOnlineButRewardedAdFailed_whenNoLoadAttempt_returnsFalse() throws Exception {
+        setField("rewardedAd", null);
+        setField("rewardedAdLoadFailed", false);
+        setField("dailyRewardedCount", 0);
+        setField("networkAvailableOverride", true);
+        assertFalse(manager.isOnlineButRewardedAdFailed());
+    }
+
     // ── Reflection helpers ──────────────────────────────────────
 
     private void setField(String name, Object value) throws Exception {

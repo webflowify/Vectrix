@@ -26,7 +26,6 @@ import androidx.annotation.NonNull;
 import com.tansoft.ps1emulator.util.EdgeToEdgeHelper;
 
 import com.tansoft.ps1emulator.ads.AdManager;
-import com.tansoft.ps1emulator.ads.AdsConfig;
 import com.tansoft.ps1emulator.ads.AppOpenAdManager;
 import com.tansoft.ps1emulator.ads.ConsentHelper;
 import com.tansoft.ps1emulator.ui.library.LibraryActivity;
@@ -55,17 +54,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
         ConsentHelper.requestConsentIfNeeded(this, () -> {
-            if (!AdsConfig.ENABLE_ADS) {
-                proceedToNext(nextIntent);
-                return;
-            }
-
-            Log.d(TAG, "Consent ready — initializing AdMob SDK for app-open");
-            AdManager.getInstance().init(this, () -> {
-                AppOpenAdManager.getInstance().markSdkInitialized();
-                AppOpenAdManager.getInstance().loadAd(this);
-            });
-
+            Log.d(TAG, "Consent resolved — AdManager already initialized from Application");
+            AppOpenAdManager.getInstance().markSdkInitialized();
             AppOpenAdManager.getInstance().showWhenReady(this, () -> {
                 proceedToNext(nextIntent);
             });

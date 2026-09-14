@@ -40,6 +40,7 @@ public class AdManager {
 
     private InterstitialAd interstitialAd;
     private RewardedAd rewardedAd;
+    private boolean rewardedAdLoadFailed = false;
     private long lastInterstitialTime = 0;
     private long lastRewardedTime = 0;
     private int dailyInterstitialCount = 0;
@@ -235,16 +236,19 @@ public class AdManager {
 
     private void preloadRewarded() {
         if (!AdsConfig.ENABLE_ADS || appContext == null) return;
+        rewardedAdLoadFailed = false;
         AdRequest request = buildAdRequest();
         RewardedAd.load(appContext, AdsConfig.getAdUnitRewarded(), request,
             new RewardedAdLoadCallback() {
                 @Override
                 public void onAdLoaded(@NonNull RewardedAd ad) {
                     rewardedAd = ad;
+                    rewardedAdLoadFailed = false;
                 }
                 @Override
                 public void onAdFailedToLoad(@NonNull LoadAdError error) {
                     rewardedAd = null;
+                    rewardedAdLoadFailed = true;
                     Log.w(TAG, "Rewarded failed to load: " + error.getMessage());
                 }
             });
@@ -266,6 +270,7 @@ public class AdManager {
             if (onDismissed != null) onDismissed.run();
             return;
         }
+        rewardedAdLoadFailed = false;
         rewardedAd.setFullScreenContentCallback(new FullScreenContentCallback() {
             @Override
             public void onAdDismissedFullScreenContent() {
@@ -292,6 +297,27 @@ public class AdManager {
     }
 
     public RewardedAd getRewardedAd() { return rewardedAd; }
+
+    // ── Online Ad-Load Failure Fallback ────────────────────────
+
+    /**
+     * Returns true when the device is online but the rewarded ad failed to load.
+     * Used by the fallback path: if the user is connected but the ad SDK didn't
+     * deliver an ad, we grant the timed unlock for free rather than blocking.
+     */
+    public boolean isOnlineButRewardedAdFailed() {
+        if (!AdsConfig.ENABLE_ADS) return false;
+        if (rewardedAd != null) return false;
+        if (!isNetworkAvailable()) return false;
+        if (dailyRewardedCount >= AdsConfig.MAX_REWARDED_PER_DAY) return false;
+        return rewardedAdLoadFailed;
+    }
+
+    private boolean isNetworkAvailable() {
+        Boolean override = networkAvailableOverride;
+        if (override != null) return override;
+        return NetworkHelper.isAvailable(appContext);
+    }
 
     // ── Banner ────────────────────────────────────────────────
 

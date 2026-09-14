@@ -6,7 +6,6 @@ import android.content.SharedPreferences;
 import android.widget.Toast;
 
 import com.tansoft.ps1emulator.storage.SaveStateManager;
-import com.tansoft.ps1emulator.util.NetworkHelper;
 
 import java.io.File;
 
@@ -94,7 +93,7 @@ public class RewardedUnlockManager {
      * Returns false if offline — shows toast and blocks unlock.
      */
     public boolean canAttemptUnlock() {
-        if (!NetworkHelper.isAvailable(context)) {
+        if (!NetworkHelper.isOnline()) {
             return false;
         }
         return true;
@@ -110,6 +109,43 @@ public class RewardedUnlockManager {
                 "Internet required to unlock",
                 Toast.LENGTH_SHORT).show();
             return false;
+        }
+        return true;
+    }
+
+    /**
+     * Attempt to unlock a timed feature with ad-load failure fallback.
+     *
+     * If the device is online but the rewarded ad failed to load, this method
+     * grants the 24-hour timed unlock immediately and shows an informational
+     * toast, rather than blocking the user. This prevents ad SDK delivery
+     * issues from locking users out of features they attempted to unlock.
+     *
+     * Returns true if the unlock succeeded (either via fallback or ready for
+     * ad dialog), false if blocked (offline or daily cap reached).
+     */
+    public boolean attemptUnlockWithFallback(Activity activity, String feature) {
+        if (!AdsConfig.ENABLE_ADS) return true;
+        if (isTimedUnlockActive(feature)) return true;
+        if (!canAttemptUnlock()) {
+            Toast.makeText(activity,
+                "Internet required to unlock",
+                Toast.LENGTH_SHORT).show();
+            return false;
+        }
+        if (AdManager.getInstance().isOnlineButRewardedAdFailed()) {
+            if (!canShowSessionRewarded()) {
+                Toast.makeText(activity,
+                    "Session limit reached. Finish your current game to unlock more.",
+                    Toast.LENGTH_SHORT).show();
+                return false;
+            }
+            incrementSessionRewarded();
+            unlockTimed(feature);
+            Toast.makeText(activity,
+                "Ad unavailable — feature unlocked for 24 hours",
+                Toast.LENGTH_LONG).show();
+            return true;
         }
         return true;
     }

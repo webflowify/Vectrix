@@ -893,7 +893,7 @@ public static Intent createIntent(android.content.Context context,
         if (emulatorService == null || !emulatorService.isRunning()) return;
 
         if (!RewardedUnlockManager.getInstance().isTimedUnlockActive("fast_forward")) {
-            if (!RewardedUnlockManager.getInstance().attemptUnlock(this, "fast_forward")) {
+            if (!RewardedUnlockManager.getInstance().attemptUnlockWithFallback(this, "fast_forward")) {
                 return;
             }
 
@@ -954,7 +954,7 @@ public static Intent createIntent(android.content.Context context,
         if (emulatorService == null || !emulatorService.isRunning()) return;
 
         if (!RewardedUnlockManager.getInstance().isTimedUnlockActive("slow_motion")) {
-            if (!RewardedUnlockManager.getInstance().attemptUnlock(this, "slow_motion")) {
+            if (!RewardedUnlockManager.getInstance().attemptUnlockWithFallback(this, "slow_motion")) {
                 return;
             }
 
@@ -1079,7 +1079,7 @@ public static Intent createIntent(android.content.Context context,
         if (rewindInProgress) return;
 
         if (!RewardedUnlockManager.getInstance().isTimedUnlockActive("rewind")) {
-            if (!RewardedUnlockManager.getInstance().attemptUnlock(this, "rewind")) {
+            if (!RewardedUnlockManager.getInstance().attemptUnlockWithFallback(this, "rewind")) {
                 return;
             }
 

@@ -1,7 +1,16 @@
 # ============================================================================
 # PS1 Emulator — ProGuard / R8 rules
 # ============================================================================
-# Keep this file in sync with every new class that uses JNI, Room, Gson,
+# NOTE: R8 optimizations are disabled (-dontoptimize) because the aggressive
+# inlining/removal passes in proguard-android-optimize.txt break the AdMob
+# SDK (v23.6.0) which relies heavily on reflection and dynamic class loading.
+# Shrinking and obfuscation are still applied; only the optimization pass is off.
+# ============================================================================
+
+# ── Disable R8 optimization pass ──────────────────────────────────────────────
+-dontoptimize
+
+# ── Keep this file in sync with every new class that uses JNI, Room, Gson,
 # reflection, or is referenced from native code.
 
 # ── Required attributes (do NOT remove) ────────────────────────────────────
