@@ -129,8 +129,24 @@
 
 # ── AdMob / Google Mobile Ads ──────────────────────────────
 -keep class com.google.android.gms.ads.** { *; }
+-keep class com.google.android.gms.ads.internal.** { *; }
 -keep class com.google.android.gms.internal.ads.** { *; }
+-keep class com.google.android.gms.tasks.** { *; }
+-keep class com.google.android.gms.common.internal.zzb { *; }
 -keep class com.google.android.ump.** { *; }
+-dontwarn com.google.android.gms.**
+-dontwarn com.google.android.gms.ads.**
+-dontwarn com.google.android.gms.internal.ads.**
+-dontwarn com.google.android.gms.tasks.**
+
+# ── App ad management classes ──────────────────────────────
+-keep class com.tansoft.ps1emulator.ads.** { *; }
+-keep class com.tansoft.ps1emulator.PS1EmulatorApp { *; }
+
+# ── Keep all Activities (needed for Activity context in full-screen ads) ──
+-keep class * extends android.app.Activity {
+    public <init>();
+}
 
 # AdMob ad unit IDs referenced as strings
 -keepclassmembers class com.tansoft.ps1emulator.ads.AdsConfig {

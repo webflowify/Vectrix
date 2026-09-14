@@ -21,7 +21,7 @@ Application as a whole is distributed).
 
 | Component | Version / Source | License | Used in |
 |---|---|---|---|
-| PCSX ReARMed (emulation core) | bundled source at `app/src/main/cpp/core` (fork of libretro/pcsx_rearmed, with modifications) | **GPLv2** (dynarec: GPLv2 only) | Native `.so` |
+| PCSX ReARMed (emulation core) | git submodule `app/src/main/cpp/core` (libretro/pcsx_rearmed) | **GPLv2** (dynarec: GPLv2 only) | Native `.so` |
 | libchdr | bundled in `core/deps/libchdr` | **BSD-3-Clause** (two copyright holders — see §2 below) | Native (CHD support) |
 | LZMA SDK (7-Zip) | bundled in `core/deps/libchdr/deps/lzma-24.05` | **Public Domain** | Native |
 | Zstandard (zstd) | bundled in `core/deps/libchdr/deps/zstd-1.5.6` | **BSD-2-Clause** | Native |
@@ -68,9 +68,6 @@ This satisfies GPLv2 §3: the binary is distributed from a designated place
 (the app store / website) and equivalent access to the corresponding source is
 available from the same place via the URL above (also shown in the app's
 **Licenses** screen). Each released binary is tagged in the repository.
-
-- **Vectrix v1.0.5** (versionName `1.0.5`, versionCode 6) — the corresponding
-  source for this released binary is tagged **`v1.0.5`** in this repository.
 
 Notes for the distributor:
 - Keep the matching source available at the repository for as long as the

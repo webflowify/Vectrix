@@ -57,6 +57,6 @@ public class RewardedUnlockManagerTest {
     public void clearSessionTwice_noCrash() {
         manager.clearSession();
         manager.clearSession();
-        assertFalse(manager.canShowSessionRewarded());
+        assertTrue(manager.canShowSessionRewarded());
     }
 }

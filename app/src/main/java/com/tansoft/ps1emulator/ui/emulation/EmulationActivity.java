@@ -723,7 +723,7 @@ public static Intent createIntent(android.content.Context context,
                 })
                 .show();
         } else if (emulatorService != null && emulatorService.isRunning()) {
-            emulatorService.pauseAndWait();
+            emulatorService.pause();
 
             new AlertDialog.Builder(this)
                 .setTitle("Exit Emulation?")
@@ -1042,7 +1042,7 @@ public static Intent createIntent(android.content.Context context,
         if (emulatorService == null || !emulatorService.isRunning()) return;
         if (emulatorService.isUserPaused()) return;
         if (emulationPausedForAd) return;           // already paused for an ad
-        emulatorService.pauseAndWait();
+        emulatorService.pause();
         emulationPausedForAd = true;
     }
 
@@ -1059,7 +1059,7 @@ public static Intent createIntent(android.content.Context context,
         if (emulatorService == null || !emulatorService.isRunning()) return;
         if (emulatorService.isUserPaused()) return;
         if (emulationPausedForSettings) return;     // already paused for settings
-        emulatorService.pauseAndWait();
+        emulatorService.pause();
         emulationPausedForSettings = true;
     }
 
@@ -1207,7 +1207,7 @@ public static Intent createIntent(android.content.Context context,
             ClickCounter.getInstance(EmulationActivity.this).recordClick();
             menuDialog.dismiss();
             if (emulatorService != null && emulatorService.isRunning()) {
-                emulatorService.pauseAndWait();
+                emulatorService.pause();
                 emulationPausedForSaveState = true;
             }
             startActivity(SaveStateActivity.createIntent(this, currentGameDiscId, true));
@@ -1218,7 +1218,7 @@ public static Intent createIntent(android.content.Context context,
             ClickCounter.getInstance(EmulationActivity.this).recordClick();
             menuDialog.dismiss();
             if (emulatorService != null && emulatorService.isRunning()) {
-                emulatorService.pauseAndWait();
+                emulatorService.pause();
                 emulationPausedForSaveState = true;
             }
             startActivity(SaveStateActivity.createIntent(this, currentGameDiscId, false));

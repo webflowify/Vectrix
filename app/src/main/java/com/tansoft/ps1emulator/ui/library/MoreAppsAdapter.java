@@ -27,8 +27,9 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.RecyclerView;
 
-import java.io.IOException;
-import java.io.InputStream;
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.bumptech.glide.request.RequestOptions;
 
 import com.tansoft.ps1emulator.R;
 
@@ -135,15 +136,15 @@ public class MoreAppsAdapter extends RecyclerView.Adapter<MoreAppsAdapter.AppVie
 
     private void loadAssetIcon(ImageView view, String assetPath, @DrawableRes int fallback) {
         Context context = view.getContext();
-        try (InputStream is = context.getAssets().open(assetPath)) {
-            Drawable drawable = Drawable.createFromStream(is, null);
-            if (drawable != null) {
-                view.setImageDrawable(drawable);
-                return;
-            }
-        } catch (IOException ignored) {
-        }
-        view.setImageResource(fallback);
+        String assetUri = "file:///android_asset/" + assetPath;
+
+        Glide.with(context)
+                .load(assetUri)
+                .apply(new RequestOptions()
+                        .diskCacheStrategy(DiskCacheStrategy.ALL)
+                        .override(192, 192)  // Consistent size for app icons
+                        .error(fallback))
+                .into(view);
     }
 
     static class AppViewHolder extends RecyclerView.ViewHolder {

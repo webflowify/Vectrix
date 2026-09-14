@@ -15,6 +15,7 @@
 package com.tansoft.ps1emulator.data;
 
 import android.content.Context;
+import android.util.Log;
 
 import androidx.room.Database;
 import androidx.room.Room;
@@ -22,6 +23,7 @@ import androidx.room.RoomDatabase;
 
 @Database(entities = {GameEntity.class}, version = 3, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
+    private static final String TAG = "AppDatabase";
     public abstract GameDao gameDao();
 
     private static volatile AppDatabase INSTANCE;
@@ -30,14 +32,38 @@ public abstract class AppDatabase extends RoomDatabase {
         if (INSTANCE == null) {
             synchronized (AppDatabase.class) {
                 if (INSTANCE == null) {
-                    INSTANCE = Room.databaseBuilder(
-                            context.getApplicationContext(),
-                            AppDatabase.class,
-                            "ps1emu_library.db"
-                    ).fallbackToDestructiveMigration().build();
+                    INSTANCE = buildDatabase(context);
                 }
             }
         }
         return INSTANCE;
+    }
+
+    private static AppDatabase buildDatabase(Context context) {
+        try {
+            return Room.databaseBuilder(
+                    context.getApplicationContext(),
+                    AppDatabase.class,
+                    "ps1emu_library.db"
+            ).fallbackToDestructiveMigration().build();
+        } catch (RuntimeException e) {
+            Log.e(TAG, "Failed to build Room database on first attempt", e);
+            Context appContext = context.getApplicationContext();
+            boolean deleted = appContext.deleteDatabase("ps1emu_library.db");
+            Log.i(TAG, "Deleted database file: " + deleted);
+            try {
+                return Room.databaseBuilder(
+                        appContext,
+                        AppDatabase.class,
+                        "ps1emu_library.db"
+                ).fallbackToDestructiveMigration().build();
+            } catch (RuntimeException retryError) {
+                Log.e(TAG, "Failed to rebuild Room database after deletion", retryError);
+                throw new RuntimeException(
+                        "Cannot create Room database. This may be caused by R8 stripping " +
+                        "the generated database implementation class. Ensure ProGuard rules " +
+                        "include: -keep class **_Impl { *; }", retryError);
+            }
+        }
     }
 }

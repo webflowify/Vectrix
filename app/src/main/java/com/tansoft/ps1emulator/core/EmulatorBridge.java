@@ -48,8 +48,9 @@ public class EmulatorBridge {
             // works, and any native call would fail loudly (correctly) only if
             // invoked outside a device build.
         }
-        allocateFramebufferBuffer(FB_WIDTH * FB_HEIGHT * 4);
-        allocateAudioBuffer(1024 * 2); // 1024 stereo frames = 2048 samples = 4096 bytes
+        // Buffers are allocated lazily on first access (see getFramebufferBuffer /
+        // getAudioBuffer) to avoid a ~4 MB upfront allocation during class
+        // loading, which can OOM on low-memory devices.
     }
 
     // Core lifecycle
@@ -134,8 +135,14 @@ public class EmulatorBridge {
      * The back buffer — the one the emulation thread hands to native code.
      * Its identity changes on every {@link #swapFramebuffers(int, int)}, so
      * callers must re-fetch it each frame rather than caching the reference.
+     *
+     * <p>Allocated lazily on first call to avoid a ~4 MB upfront allocation
+     * during class loading, which can OOM on low-memory devices.
      */
     public static ByteBuffer getFramebufferBuffer() {
+        if (framebufferBuffer == null) {
+            allocateFramebufferBuffer(FB_WIDTH * FB_HEIGHT * 4);
+        }
         return framebufferBuffer;
     }
 
@@ -183,9 +190,14 @@ public class EmulatorBridge {
      * Clear both framebuffers to black.
      * Must be called when starting a new emulation session to prevent
      * stale data from a previous session from showing through.
+     *
+     * <p>Allocates the framebuffers if they haven't been created yet.
      */
     public static void clearFramebufferBuffer() {
         synchronized (FB_LOCK) {
+            if (framebufferBuffer == null) {
+                allocateFramebufferBuffer(FB_WIDTH * FB_HEIGHT * 4);
+            }
             zeroBuffer(framebufferBuffer);
             zeroBuffer(framebufferFront);
         }
@@ -209,7 +221,15 @@ public class EmulatorBridge {
         audioBuffer = ByteBuffer.allocateDirect(size);
     }
 
+    /**
+     * Returns the audio buffer, allocating it lazily on first access.
+     * This avoids a 4 KB allocation during class loading, keeping the
+     * EmulatorBridge class lightweight until emulation actually starts.
+     */
     public static ByteBuffer getAudioBuffer() {
+        if (audioBuffer == null) {
+            allocateAudioBuffer(1024 * 2); // 1024 stereo frames = 2048 samples = 4096 bytes
+        }
         return audioBuffer;
     }
 

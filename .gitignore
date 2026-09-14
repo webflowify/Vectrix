@@ -1,37 +1,43 @@
-# Built application files
-*.apk
-*.aar
-*.ap_
-*.aab
-
-# Java / class files
-*.class
-
-# Generated / build outputs
-bin/
-gen/
-out/
-.gradle/
-build/
-app/build/
-release/
-captures/
-
-# Local configuration — SDK/NDK paths and signing keys. NEVER commit these.
-local.properties
-signing.properties
-*.keystore
-*.jks
-
-# IDE / OS / native build
 *.iml
-.idea/
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
 .DS_Store
-.externalNativeBuild/
-.cxx/
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
 
-# Native build outputs
+# App-level build outputs
+/app/build
+/app/release
+
+# NDK build artifacts
 *.so
 
-# Logs / temp
-*.log
+# IDE per-user settings
+*.iws
+/.idea/tasks.xml
+/.idea/usage.statistics.xml
+/.idea/name.xml
+
+# Node.js
+node_modules/
+package.json
+package-lock.json
+scripts/
+*.svg
+*.jpg
+!app/src/main/res/drawable/ic_launcher_512.png
+
+# Release signing keys — NEVER commit these
+*.keystore
+*.jks
+release-key.keystore
+signing.properties

@@ -39,12 +39,8 @@ public class PS1EmulatorApp extends Application {
         ClickCounter.getInstance(this);
 
         if (AdsConfig.ENABLE_ADS) {
-            Log.d(TAG, "AdMob enabled — initializing SDK");
+            Log.d(TAG, "AdMob enabled — registering lifecycle callbacks");
             AppOpenAdManager.getInstance().init(this);
-            AdManager.getInstance().init(this, () -> {
-                AppOpenAdManager.getInstance().markSdkInitialized();
-                AppOpenAdManager.getInstance().loadAd(this);
-            });
         } else {
             Log.d(TAG, "AdMob disabled — skipping SDK initialization");
         }

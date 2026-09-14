@@ -17,18 +17,24 @@ package com.tansoft.ps1emulator;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.util.Log;
 
 import androidx.appcompat.app.AppCompatActivity;
+
+import androidx.annotation.NonNull;
 
 import com.tansoft.ps1emulator.util.EdgeToEdgeHelper;
 
 import com.tansoft.ps1emulator.ads.AdManager;
+import com.tansoft.ps1emulator.ads.AdsConfig;
 import com.tansoft.ps1emulator.ads.AppOpenAdManager;
+import com.tansoft.ps1emulator.ads.ConsentHelper;
 import com.tansoft.ps1emulator.ui.library.LibraryActivity;
 import com.tansoft.ps1emulator.ui.onboarding.DisclaimerActivity;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static final String TAG = "MainActivity";
     private static final String PREFS_NAME = "onboarding_prefs";
     private static final String KEY_DISCLAIMER_ACCEPTED = "disclaimer_accepted";
 
@@ -48,12 +54,29 @@ public class MainActivity extends AppCompatActivity {
             nextIntent = new Intent(this, LibraryActivity.class);
         }
 
-        AppOpenAdManager.getInstance().showWhenReady(this, () -> {
-            if (!isFinishing() && !isDestroyed()) {
-                startActivity(nextIntent);
-                finish();
+        ConsentHelper.requestConsentIfNeeded(this, () -> {
+            if (!AdsConfig.ENABLE_ADS) {
+                proceedToNext(nextIntent);
+                return;
             }
+
+            Log.d(TAG, "Consent ready — initializing AdMob SDK for app-open");
+            AdManager.getInstance().init(this, () -> {
+                AppOpenAdManager.getInstance().markSdkInitialized();
+                AppOpenAdManager.getInstance().loadAd(this);
+            });
+
+            AppOpenAdManager.getInstance().showWhenReady(this, () -> {
+                proceedToNext(nextIntent);
+            });
         });
+    }
+
+    private void proceedToNext(@NonNull Intent nextIntent) {
+        if (!isFinishing() && !isDestroyed()) {
+            startActivity(nextIntent);
+            finish();
+        }
     }
 
     private boolean isDisclaimerAccepted(SharedPreferences prefs) {
