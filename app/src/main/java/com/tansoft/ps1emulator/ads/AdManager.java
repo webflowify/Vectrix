@@ -10,8 +10,16 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
+import android.graphics.Rect;
+import android.os.Build;
+import android.os.Bundle;
+import android.view.ViewGroup;
+import android.widget.LinearLayout;
+
+import com.google.ads.mediation.admob.AdMobAdapter;
 import com.google.android.gms.ads.AdError;
 import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.AdSize;
 import com.google.android.gms.ads.AdView;
 import com.google.android.gms.ads.FullScreenContentCallback;
 import com.google.android.gms.ads.LoadAdError;
@@ -118,8 +126,7 @@ public class AdManager {
 
     public boolean canShowInterstitial() {
         if (!AdsConfig.ENABLE_ADS) return false;
-        Boolean override = networkAvailableOverride;
-        if (override != null ? !override : !NetworkHelper.isAvailable(appContext)) return false;
+        if (!isNetworkAvailable()) return false;
         if (interstitialAd == null) return false;
         if (!AdCoordinator.getInstance().canShow()) return false;
         return true;
@@ -130,7 +137,7 @@ public class AdManager {
             ClickCounter counter = ClickCounter.getInstance(appContext);
             Log.d(TAG, "showInterstitialIfReady: blocked — "
                 + "enabled=" + AdsConfig.ENABLE_ADS
-                + " network=" + NetworkHelper.isAvailable(appContext)
+                + " network=" + isNetworkAvailable()
                 + " adLoaded=" + (interstitialAd != null)
                 + " clicks=" + (counter != null ? counter.getSessionClicks() : "N/A"));
             return;
@@ -256,8 +263,7 @@ public class AdManager {
 
     public boolean canShowRewarded() {
         if (!AdsConfig.ENABLE_ADS) return false;
-        Boolean override = networkAvailableOverride;
-        if (override != null ? !override : !NetworkHelper.isAvailable(appContext)) return false;
+        if (!isNetworkAvailable()) return false;
         if (rewardedAd == null) return false;
         if (dailyRewardedCount >= AdsConfig.MAX_REWARDED_PER_DAY) return false;
         return true;
@@ -316,18 +322,107 @@ public class AdManager {
     private boolean isNetworkAvailable() {
         Boolean override = networkAvailableOverride;
         if (override != null) return override;
+        if (appContext == null) return false;
         return NetworkHelper.isAvailable(appContext);
     }
 
     // ── Banner ────────────────────────────────────────────────
 
-    public void loadBanner(@NonNull AdView adView) {
+    /**
+     * Loads a collapsible banner ad into the given container.
+     * Creates the AdView programmatically with adaptive sizing and collapsible bottom position.
+     *
+     * @param activity  The host activity (needed for window metrics and density)
+     * @param container The LinearLayout to add the AdView into
+     * @return The created AdView, or null if ads are disabled
+     */
+    public AdView loadCollapsibleBanner(@NonNull android.app.Activity activity,
+                                         @NonNull LinearLayout container) {
         if (!AdsConfig.ENABLE_ADS) {
-            adView.setVisibility(android.view.View.GONE);
+            container.setVisibility(android.view.View.GONE);
+            return null;
+        }
+
+        AdView adView = new AdView(activity);
+        adView.setAdUnitId(AdsConfig.getAdUnitBanner());
+
+        AdSize adSize = getAdSize(activity, container);
+        adView.setAdSize(adSize);
+
+        Bundle extras = new Bundle();
+        extras.putString("collapsible", "bottom");
+
+        AdRequest adRequest = new AdRequest.Builder()
+                .addNetworkExtrasBundle(AdMobAdapter.class, extras)
+                .build();
+
+        container.addView(adView);
+        adView.loadAd(adRequest);
+
+        Log.d(TAG, "loadCollapsibleBanner: adUnitId=" + AdsConfig.getAdUnitBanner()
+                + " adSize=" + adSize + " containerWidth=" + container.getWidth());
+
+        return adView;
+    }
+
+    /**
+     * Loads a collapsible banner, deferring until the container is measured.
+     * Use this when the container may not have been laid out yet (e.g. called from onCreate).
+     */
+    public void loadCollapsibleBannerDeferred(@NonNull android.app.Activity activity,
+                                               @NonNull LinearLayout container,
+                                               @Nullable com.google.android.gms.ads.AdListener listener) {
+        if (!AdsConfig.ENABLE_ADS) {
+            container.setVisibility(android.view.View.GONE);
             return;
         }
-        AdRequest request = buildAdRequest();
-        adView.loadAd(request);
+
+        container.getViewTreeObserver().addOnGlobalLayoutListener(
+            new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+                @Override
+                public void onGlobalLayout() {
+                    container.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                    AdView adView = new AdView(activity);
+                    adView.setAdUnitId(AdsConfig.getAdUnitBanner());
+
+                    AdSize adSize = getAdSize(activity, container);
+                    adView.setAdSize(adSize);
+
+                    Bundle extras = new Bundle();
+                    extras.putString("collapsible", "bottom");
+
+                    AdRequest adRequest = new AdRequest.Builder()
+                            .addNetworkExtrasBundle(AdMobAdapter.class, extras)
+                            .build();
+
+                    if (listener != null) {
+                        adView.setAdListener(listener);
+                    }
+
+                    container.addView(adView);
+                    adView.loadAd(adRequest);
+
+                    Log.d(TAG, "loadCollapsibleBannerDeferred: adUnitId=" + AdsConfig.getAdUnitBanner()
+                            + " adSize=" + adSize + " containerWidth=" + container.getWidth());
+                }
+            });
+    }
+
+    private AdSize getAdSize(@NonNull android.app.Activity activity,
+                              @NonNull LinearLayout container) {
+        int adWidthPixels = container.getWidth();
+        if (adWidthPixels == 0) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Rect bounds = activity.getWindowManager().getCurrentWindowMetrics().getBounds();
+                adWidthPixels = bounds.width();
+            } else {
+                adWidthPixels = container.getResources().getDisplayMetrics().widthPixels;
+            }
+        }
+        float density = container.getResources().getDisplayMetrics().density;
+        int adWidth = (int) (adWidthPixels / density);
+        Log.d(TAG, "getAdSize: adWidthPixels=" + adWidthPixels + " density=" + density + " adWidth=" + adWidth);
+        return AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(activity, adWidth);
     }
 
     // ── Lifecycle ─────────────────────────────────────────────

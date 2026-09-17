@@ -31,6 +31,15 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+/**
+ * Manages save state files, thumbnails, and slot listing for PS1 game saves.
+ *
+ * Thumbnails are decoded with {@link BitmapFactory.Options#inSampleSize} to
+ * minimise peak heap usage.  The display target is small (≈200×150 in the
+ * save-state grid), so full-resolution decoding is unnecessary and wastes
+ * memory that the emulator core needs at runtime.
+ */
+
 public class SaveStateManager {
 
     private static final String TAG = "SaveStateManager";
@@ -38,6 +47,16 @@ public class SaveStateManager {
     private static final String SAVE_DIR = "savestates";
     private static final String FILE_PREFIX = "slot_";
     private static final String FILE_SUFFIX = ".psst";
+
+    // Thumbnails are displayed at ≈200×150 in the save-state grid.
+    // Decoding at a higher resolution wastes memory for no visual benefit.
+    private static final int THUMBNAIL_MAX_WIDTH  = 400;
+    private static final int THUMBNAIL_MAX_HEIGHT = 300;
+
+    // Absolute upper bound for thumbnails extracted from the binary save.
+    // PS1 native resolution tops out at 640×480; 1024×1024 gives ample
+    // headroom while preventing multi-megabyte allocations from corrupt data.
+    private static final int MAX_EXTRACT_DIMENSION = 1024;
 
     public static File getSaveDir(Context context, String gameDiscId) {
         File dir = new File(context.getFilesDir(), SAVE_DIR + File.separator + gameDiscId);
@@ -107,7 +126,8 @@ public class SaveStateManager {
         // First, check if we have a cached PNG thumbnail (faster, Glide-compatible)
         File pngFile = getThumbnailFile(context, gameDiscId, slot);
         if (pngFile.exists()) {
-            return BitmapFactory.decodeFile(pngFile.getAbsolutePath());
+            return decodeSampledBitmap(pngFile.getAbsolutePath(),
+                    THUMBNAIL_MAX_WIDTH, THUMBNAIL_MAX_HEIGHT);
         }
 
         // Fall back to extracting from save state binary
@@ -131,7 +151,7 @@ public class SaveStateManager {
             int sh = (sizeBuf[0] & 0xFF) | ((sizeBuf[1] & 0xFF) << 8)
                    | ((sizeBuf[2] & 0xFF) << 16) | ((sizeBuf[3] & 0xFF) << 24);
 
-            if (sw <= 0 || sh <= 0 || sw > 2048 || sh > 2048) return null;
+            if (sw <= 0 || sh <= 0 || sw > MAX_EXTRACT_DIMENSION || sh > MAX_EXTRACT_DIMENSION) return null;
 
             int pixelCount = sw * sh;
             byte[] rgba = new byte[pixelCount * 4];
@@ -142,14 +162,80 @@ public class SaveStateManager {
             ByteBuffer buffer = ByteBuffer.wrap(rgba);
             bmp.copyPixelsFromBuffer(buffer);
 
-            // Cache as PNG for future Glide loads
-            saveThumbnailAsPng(bmp, pngFile);
+            // Scale down to thumbnail size if the source is larger
+            Bitmap thumbnail = scaleToThumbnail(bmp, THUMBNAIL_MAX_WIDTH, THUMBNAIL_MAX_HEIGHT);
+            if (thumbnail != bmp) {
+                bmp.recycle();
+            }
 
-            return bmp;
+            // Cache as PNG for future Glide loads
+            saveThumbnailAsPng(thumbnail, pngFile);
+
+            return thumbnail;
         } catch (IOException e) {
             e.printStackTrace();
             return null;
         }
+    }
+
+    /**
+     * Decode a file-backed bitmap with {@code inSampleSize} so only the
+     * resolution needed for the UI is loaded into memory.
+     */
+    private static Bitmap decodeSampledBitmap(String path, int reqWidth, int reqHeight) {
+        // First pass: read dimensions only (no memory allocated for pixels)
+        BitmapFactory.Options opts = new BitmapFactory.Options();
+        opts.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(path, opts);
+
+        // Guard against corrupt / zero-dimension images
+        if (opts.outWidth <= 0 || opts.outHeight <= 0) {
+            return BitmapFactory.decodeFile(path);
+        }
+
+        // Second pass: decode at reduced resolution
+        opts.inSampleSize = calculateInSampleSize(opts, reqWidth, reqHeight);
+        opts.inJustDecodeBounds = false;
+        return BitmapFactory.decodeFile(path, opts);
+    }
+
+    /**
+     * Calculate the largest power-of-two {@code inSampleSize} value that keeps
+     * the decoded image at least as large as the requested dimensions.
+     * Returns 1 when no downsampling is required.
+     */
+    private static int calculateInSampleSize(BitmapFactory.Options options,
+                                             int reqWidth, int reqHeight) {
+        final int height = options.outHeight;
+        final int width  = options.outWidth;
+        int inSampleSize = 1;
+
+        if (height > reqHeight || width > reqWidth) {
+            int halfHeight = height / 2;
+            int halfWidth  = width / 2;
+            // Largest power-of-two that keeps both dimensions >= requested
+            while ((halfHeight / inSampleSize) >= reqHeight
+                    && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2;
+            }
+        }
+        return inSampleSize;
+    }
+
+    /**
+     * Scale a bitmap down to fit within {@code maxWidth × maxHeight}.
+     * Returns the original bitmap unchanged if it already fits.
+     */
+    private static Bitmap scaleToThumbnail(Bitmap source, int maxWidth, int maxHeight) {
+        int w = source.getWidth();
+        int h = source.getHeight();
+        if (w <= maxWidth && h <= maxHeight) {
+            return source;
+        }
+        float scale = Math.min((float) maxWidth / w, (float) maxHeight / h);
+        int newW = Math.round(w * scale);
+        int newH = Math.round(h * scale);
+        return Bitmap.createScaledBitmap(source, newW, newH, true);
     }
 
     /**

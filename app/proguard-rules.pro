@@ -95,6 +95,31 @@
     public <init>();
 }
 
+# ── Custom Views inflated from XML ──────────────────────────────────────────
+# Android's LayoutInflater uses Class.forName(className).getDeclaredConstructor()
+# to instantiate custom Views. If R8 renames the class or strips its constructors,
+# layout inflation crashes at runtime with an ClassNotFoundException or
+# NoSuchMethodException.
+-keep class com.tansoft.ps1emulator.input.VirtualGamepadView {
+    <init>(android.content.Context);
+    <init>(android.content.Context, android.util.AttributeSet);
+    <init>(android.content.Context, android.util.AttributeSet, int);
+}
+
+# Generic rule for any future custom Views inflated from XML layouts
+-keepclassmembers class * extends android.view.View {
+    <init>(android.content.Context);
+    <init>(android.content.Context, android.util.AttributeSet);
+    <init>(android.content.Context, android.util.AttributeSet, int);
+}
+
+# ── Preference target class ────────────────────────────────────────────────
+# res/xml/preferences.xml uses android:targetClass="...ControllerMappingActivity"
+# which PreferenceManager resolves at runtime via Class.forName().
+# A full keep is needed because PreferenceManager also reflectively invokes
+# lifecycle methods beyond just the constructor.
+-keep class com.tansoft.ps1emulator.ui.settings.ControllerMappingActivity { *; }
+
 # ── Input dispatcher (singleton, called from native thread) ─────────────────
 -keep class com.tansoft.ps1emulator.input.InputDispatcher {
     public static * getInstance();

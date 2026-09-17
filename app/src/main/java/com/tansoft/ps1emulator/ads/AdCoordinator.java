@@ -7,6 +7,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import java.lang.ref.WeakReference;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Global gatekeeper that ensures only one full-screen ad (app-open or interstitial)
@@ -19,8 +21,27 @@ import java.lang.ref.WeakReference;
  *   <li>Back-to-back full-screen ads of any type with no user-visible gap</li>
  *   <li>Stuck ad state when an activity is destroyed mid-display</li>
  * </ul>
+ *
+ * <p>Activities that display banner ads should register as {@link FullScreenAdListener}
+ * to hide their banners while a full-screen ad is on screen — required by AdMob policy
+ * to avoid simultaneous ad impressions.
  */
 public final class AdCoordinator {
+
+    /**
+     * Callback interface for activities that need to hide/restore banner ads
+     * when a full-screen ad (app-open or interstitial) starts/ends.
+     *
+     * <p>AdMob policy prohibits simultaneous ad impressions (e.g. a banner
+     * visible beneath a full-screen ad). Registering as a listener ensures
+     * banners are hidden during full-screen ad display.
+     */
+    public interface FullScreenAdListener {
+        /** Called when a full-screen ad starts. Hide all banner ads immediately. */
+        void onFullScreenAdStarted();
+        /** Called when a full-screen ad ends. Restore banner ads if appropriate. */
+        void onFullScreenAdEnded();
+    }
 
     private static final String TAG = "AdCoordinator";
 
@@ -41,6 +62,9 @@ public final class AdCoordinator {
     @Nullable
     private WeakReference<Activity> currentShowingActivity;
 
+    /** Listeners notified when full-screen ads start/end (e.g. to hide banners). */
+    private final List<FullScreenAdListener> listeners = new CopyOnWriteArrayList<>();
+
     private AdCoordinator() {}
 
     public static synchronized AdCoordinator getInstance() {
@@ -51,6 +75,23 @@ public final class AdCoordinator {
     }
 
     // ── Public API ────────────────────────────────────────────────
+
+    /**
+     * Registers a listener to be notified when full-screen ads start/end.
+     * Safe to call multiple times — duplicate registrations are ignored.
+     */
+    public void addListener(@NonNull FullScreenAdListener listener) {
+        if (!listeners.contains(listener)) {
+            listeners.add(listener);
+        }
+    }
+
+    /**
+     * Unregisters a previously registered listener.
+     */
+    public void removeListener(@NonNull FullScreenAdListener listener) {
+        listeners.remove(listener);
+    }
 
     /**
      * Returns true if a new full-screen ad may be shown.
@@ -93,6 +134,7 @@ public final class AdCoordinator {
         currentShowingActivity = new WeakReference<>(activity);
         String activityName = activity != null ? activity.getClass().getSimpleName() : "null";
         Log.d(TAG, "Full-screen ad started on " + activityName);
+        notifyAdStarted();
     }
 
     /**
@@ -105,6 +147,7 @@ public final class AdCoordinator {
         currentShowingActivity = null;
         Log.d(TAG, "Full-screen ad ended — next ad allowed after "
             + MIN_GAP_BETWEEN_ADS_MS + "ms");
+        notifyAdEnded();
     }
 
     /**
@@ -141,8 +184,12 @@ public final class AdCoordinator {
         if (isFullScreenAdShowing) {
             Log.w(TAG, "Force-resetting full-screen ad state (activity destroyed)");
         }
+        boolean wasShowing = isFullScreenAdShowing;
         isFullScreenAdShowing = false;
         currentShowingActivity = null;
+        if (wasShowing) {
+            notifyAdEnded();
+        }
     }
 
     /**
@@ -150,5 +197,27 @@ public final class AdCoordinator {
      */
     public boolean isShowing() {
         return isFullScreenAdShowing;
+    }
+
+    // ── Listener Notification ──────────────────────────────────
+
+    private void notifyAdStarted() {
+        for (FullScreenAdListener listener : listeners) {
+            try {
+                listener.onFullScreenAdStarted();
+            } catch (Exception e) {
+                Log.e(TAG, "Listener threw in onFullScreenAdStarted", e);
+            }
+        }
+    }
+
+    private void notifyAdEnded() {
+        for (FullScreenAdListener listener : listeners) {
+            try {
+                listener.onFullScreenAdEnded();
+            } catch (Exception e) {
+                Log.e(TAG, "Listener threw in onFullScreenAdEnded", e);
+            }
+        }
     }
 }

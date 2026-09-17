@@ -26,9 +26,11 @@ import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -76,7 +78,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 
 public class LibraryActivity extends AppCompatActivity
-        implements GameContextMenuDialog.OnMenuActionListener {
+        implements GameContextMenuDialog.OnMenuActionListener,
+                   AdCoordinator.FullScreenAdListener {
 
     private static final String TAG = "LibraryActivity";
     private static final int REQUEST_CODE_ROM_PICKER = 2001;
@@ -93,8 +96,12 @@ public class LibraryActivity extends AppCompatActivity
     private GameEntity pendingImportGame;
     private Menu menu;
     private AdView adViewBanner;
+    private LinearLayout bannerContainer;
     private boolean returningFromGame = false;
     private boolean bannerHiddenByOverlay = false;
+    private boolean bannerHiddenByFullScreenAd = false;
+    private int lastBannerHeight = 0;
+    private ViewTreeObserver.OnGlobalLayoutListener bannerLayoutListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -133,6 +140,7 @@ public class LibraryActivity extends AppCompatActivity
         observeImportState();
         loadNativeAds();
 
+        AdCoordinator.getInstance().addListener(this);
         EngagementTracker.getInstance().startSession();
     }
 
@@ -228,58 +236,104 @@ public class LibraryActivity extends AppCompatActivity
     }
 
     private void setupBannerAd() {
-        adViewBanner = findViewById(R.id.adViewBanner);
-        if (adViewBanner != null) {
-            adViewBanner.getViewTreeObserver().addOnGlobalLayoutListener(
-                new ViewTreeObserver.OnGlobalLayoutListener() {
-                    @Override
-                    public void onGlobalLayout() {
-                        int bannerHeight = adViewBanner.getHeight();
-                        if (bannerHeight > 0) {
-                            adViewBanner.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                            adjustContentForBanner(bannerHeight);
-                        }
-                    }
+        bannerContainer = findViewById(R.id.bannerContainer);
+        if (bannerContainer != null) {
+            bannerLayoutListener = () -> {
+                int newHeight = bannerContainer.getHeight();
+                if (newHeight != lastBannerHeight) {
+                    lastBannerHeight = newHeight;
+                    Log.d(TAG, "Banner container height changed: " + newHeight);
+                    adjustContentForBanner(newHeight);
                 }
-            );
-            adViewBanner.setAdListener(new com.google.android.gms.ads.AdListener() {
+            };
+            bannerContainer.getViewTreeObserver().addOnGlobalLayoutListener(bannerLayoutListener);
+
+            com.google.android.gms.ads.AdListener bannerListener = new com.google.android.gms.ads.AdListener() {
                 @Override
                 public void onAdLoaded() {
-                    adViewBanner.post(() -> {
-                        int bannerHeight = adViewBanner.getHeight();
-                        if (bannerHeight > 0) {
-                            adjustContentForBanner(bannerHeight);
-                        }
+                    adViewBanner = findBannerAdView();
+                    if (adViewBanner != null) {
+                        Log.d(TAG, "Banner onAdLoaded: isCollapsible=" + adViewBanner.isCollapsible());
+                    }
+                    bannerContainer.post(() -> {
+                        int bannerHeight = bannerContainer.getHeight();
+                        Log.d(TAG, "Banner loaded: height=" + bannerHeight);
+                        adjustContentForBanner(bannerHeight);
                     });
                 }
 
                 @Override
                 public void onAdFailedToLoad(@NonNull com.google.android.gms.ads.LoadAdError error) {
-                    adViewBanner.setVisibility(View.GONE);
+                    Log.w(TAG, "Banner onAdFailedToLoad: code=" + error.getCode() + " message=" + error.getMessage());
+                    bannerContainer.setVisibility(View.GONE);
                     adjustContentForBanner(0);
                 }
-            });
-            AdManager.getInstance().loadBanner(adViewBanner);
+            };
+            AdManager.getInstance().loadCollapsibleBannerDeferred(this, bannerContainer, bannerListener);
         }
     }
 
+    private AdView findBannerAdView() {
+        if (bannerContainer != null) {
+            for (int i = 0; i < bannerContainer.getChildCount(); i++) {
+                View child = bannerContainer.getChildAt(i);
+                if (child instanceof AdView) {
+                    return (AdView) child;
+                }
+            }
+        }
+        return null;
+    }
+
     private void adjustContentForBanner(int bannerHeightPx) {
-        int bottomPadding = bannerHeightPx > 0 ? bannerHeightPx + (int) (8 * getResources().getDisplayMetrics().density) : (int) (58 * getResources().getDisplayMetrics().density);
-        recyclerView.setPadding(recyclerView.getPaddingLeft(), recyclerView.getPaddingTop(), recyclerView.getPaddingRight(), bottomPadding);
-        recyclerView.setClipToPadding(false);
+        int bottomPadding;
+        if (bannerHeightPx > 0) {
+            bottomPadding = bannerHeightPx + (int) (4 * getResources().getDisplayMetrics().density);
+        } else {
+            bottomPadding = (int) (16 * getResources().getDisplayMetrics().density);
+        }
+        if (recyclerView.getPaddingBottom() != bottomPadding) {
+            Log.d(TAG, "adjustContentForBanner: padding=" + bottomPadding + "px (banner=" + bannerHeightPx + "px)");
+            recyclerView.setPadding(recyclerView.getPaddingLeft(), recyclerView.getPaddingTop(), recyclerView.getPaddingRight(), bottomPadding);
+            recyclerView.setClipToPadding(false);
+        }
     }
 
     private void hideBannerForOverlay() {
-        if (adViewBanner != null && adViewBanner.getVisibility() == View.VISIBLE) {
+        if (bannerContainer != null && bannerContainer.getVisibility() == View.VISIBLE) {
             bannerHiddenByOverlay = true;
-            adViewBanner.setVisibility(View.GONE);
+            bannerContainer.setVisibility(View.GONE);
         }
     }
 
     private void restoreBannerAfterOverlay() {
-        if (adViewBanner != null && bannerHiddenByOverlay) {
+        if (bannerContainer != null && bannerHiddenByOverlay) {
             bannerHiddenByOverlay = false;
-            adViewBanner.setVisibility(View.VISIBLE);
+            if (!bannerHiddenByFullScreenAd) {
+                bannerContainer.setVisibility(View.VISIBLE);
+            }
+        }
+    }
+
+    // ── FullScreenAdListener ──────────────────────────────────
+
+    @Override
+    public void onFullScreenAdStarted() {
+        if (bannerContainer != null && bannerContainer.getVisibility() == View.VISIBLE) {
+            bannerHiddenByFullScreenAd = true;
+            bannerContainer.setVisibility(View.GONE);
+            Log.d(TAG, "onFullScreenAdStarted: banner hidden");
+        }
+    }
+
+    @Override
+    public void onFullScreenAdEnded() {
+        if (bannerContainer != null && bannerHiddenByFullScreenAd) {
+            bannerHiddenByFullScreenAd = false;
+            if (!bannerHiddenByOverlay) {
+                bannerContainer.setVisibility(View.VISIBLE);
+                Log.d(TAG, "onFullScreenAdEnded: banner restored");
+            }
         }
     }
 
@@ -451,18 +505,23 @@ public class LibraryActivity extends AppCompatActivity
     protected void onResume() {
         super.onResume();
         Log.d(TAG, "onResume: returningFromGame=" + returningFromGame
-                + " bannerHiddenByOverlay=" + bannerHiddenByOverlay);
+                + " bannerHiddenByOverlay=" + bannerHiddenByOverlay
+                + " bannerHiddenByFullScreenAd=" + bannerHiddenByFullScreenAd
+                + " fullScreenAdShowing=" + AdCoordinator.getInstance().isShowing());
 
         androidx.fragment.app.Fragment existingMenu = getSupportFragmentManager().findFragmentByTag("game_context_menu");
         Log.d(TAG, "onResume: existing context menu fragment=" + (existingMenu == null ? "null" : existingMenu.getClass().getSimpleName() + " isAdded=" + existingMenu.isAdded()));
 
-        if (adViewBanner != null) adViewBanner.resume();
+        if (!AdCoordinator.getInstance().isShowing() && !bannerHiddenByFullScreenAd) {
+            if (adViewBanner != null) adViewBanner.resume();
+            else { AdView found = findBannerAdView(); if (found != null) found.resume(); }
+        }
 
         if (returningFromGame) {
             returningFromGame = false;
         }
 
-        if (bannerHiddenByOverlay) {
+        if (bannerHiddenByOverlay && !bannerHiddenByFullScreenAd) {
             androidx.fragment.app.Fragment dialog = getSupportFragmentManager().findFragmentByTag("game_context_menu");
             if (dialog == null || !dialog.isAdded()) {
                 Log.d(TAG, "onResume: restoring banner (no active context menu)");
@@ -480,13 +539,20 @@ public class LibraryActivity extends AppCompatActivity
         Log.d(TAG, "onPause");
         dismissExistingContextMenu();
         if (adViewBanner != null) adViewBanner.pause();
+        else { AdView found = findBannerAdView(); if (found != null) found.pause(); }
         super.onPause();
     }
 
     @Override
     protected void onDestroy() {
+        AdCoordinator.getInstance().removeListener(this);
+        if (bannerContainer != null && bannerLayoutListener != null) {
+            bannerContainer.getViewTreeObserver().removeOnGlobalLayoutListener(bannerLayoutListener);
+            bannerLayoutListener = null;
+        }
         NativeAdManager.getInstance().destroyAll();
         if (adViewBanner != null) adViewBanner.destroy();
+        else { AdView found = findBannerAdView(); if (found != null) found.destroy(); }
         if (AdCoordinator.getInstance().getCurrentShowingActivity() == this) {
             AdCoordinator.getInstance().forceReset();
         }

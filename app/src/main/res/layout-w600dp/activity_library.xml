@@ -4,7 +4,9 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:clipChildren="false"
+    android:clipToPadding="false">
 
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
@@ -214,13 +216,17 @@
     </FrameLayout>
 
     <!-- Banner Ad — bottom of screen -->
-    <com.google.android.gms.ads.AdView
-        android:id="@+id/adViewBanner"
+    <LinearLayout
+        android:id="@+id/bannerContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        app:adSize="SMART_BANNER"
-        app:adUnitId="@string/ad_unit_banner" />
+        android:background="#FF000000"
+        android:paddingTop="8dp"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:gravity="center_horizontal"
+        android:orientation="vertical" />
 
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

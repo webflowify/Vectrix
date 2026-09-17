@@ -144,7 +144,7 @@ public class AppOpenAdManager implements Application.ActivityLifecycleCallbacks 
         if (isLoading || isAdAvailable()) return;
 
         Context loadContext = (appContext != null) ? appContext : context.getApplicationContext();
-        if (!NetworkHelper.isAvailable(loadContext)) {
+        if (loadContext == null || !NetworkHelper.isAvailable(loadContext)) {
             Log.w(TAG, "loadAd: offline, skipping");
             if (pendingShowActive) {
                 completePendingShow(false);
@@ -401,7 +401,7 @@ public class AppOpenAdManager implements Application.ActivityLifecycleCallbacks 
         }
 
         Context ctx = (appContext != null) ? appContext : activity.getApplicationContext();
-        if (AdsConfig.ENABLE_ADS && !isAdAvailable() && !isLoading
+        if (ctx != null && AdsConfig.ENABLE_ADS && !isAdAvailable() && !isLoading
                 && NetworkHelper.isAvailable(ctx)) {
             Log.d(TAG, "Foregrounded with no valid ad cache — pre-loading for next opportunity");
             loadAd(ctx);
@@ -423,7 +423,7 @@ public class AppOpenAdManager implements Application.ActivityLifecycleCallbacks 
 
             if (!isShowingAd) {
                 Context ctx = (appContext != null) ? appContext : activity.getApplicationContext();
-                if (AdsConfig.ENABLE_ADS && !isAdAvailable() && !isLoading
+                if (ctx != null && AdsConfig.ENABLE_ADS && !isAdAvailable() && !isLoading
                         && NetworkHelper.isAvailable(ctx)) {
                     Log.d(TAG, "Backgrounding with no valid ad cache — pre-loading for next foreground");
                     loadAd(ctx);
