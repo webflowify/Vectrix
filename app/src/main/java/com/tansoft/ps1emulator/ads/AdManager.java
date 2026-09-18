@@ -85,21 +85,36 @@ public class AdManager {
             Log.d(TAG, "Test device configured: " + AdsConfig.getTestDeviceId());
         }
 
-        MobileAds.initialize(appContext, status -> {
-            Log.d(TAG, "AdMob initialized");
-            if (!NetworkHelper.isAvailable(appContext)) {
-                Log.w(TAG, "Device is offline — ads will not load, rewarded features locked");
+        MobileAds.initialize(appContext, new com.google.android.gms.ads.initialization.OnInitializationCompleteListener() {
+            @Override
+            public void onInitializationComplete(com.google.android.gms.ads.initialization.InitializationStatus status) {
+                Log.d(TAG, "AdMob initialized");
+                if (!NetworkHelper.isAvailable(appContext)) {
+                    Log.w(TAG, "Device is offline — ads will not load, rewarded features locked");
+                }
+                if (onInitialized != null) onInitialized.run();
             }
-            preloadInterstitial();
-            preloadRewarded();
-            if (onInitialized != null) onInitialized.run();
         });
+    }
+
+    public void preloadAds() {
+        if (!AdsConfig.ENABLE_ADS || appContext == null) return;
+        Log.d(TAG, "preloadAds: loading interstitial and rewarded");
+        preloadInterstitial();
+        preloadRewarded();
     }
 
     // ── Interstitial ──────────────────────────────────────────
 
     private AdRequest buildAdRequest() {
-        return new AdRequest.Builder().build();
+        AdRequest.Builder builder = new AdRequest.Builder();
+        if (!ConsentHelper.canRequestPersonalizedAds()) {
+            Bundle npaExtras = new Bundle();
+            npaExtras.putString("npa", "1");
+            builder.addNetworkExtrasBundle(AdMobAdapter.class, npaExtras);
+            Log.d(TAG, "buildAdRequest: non-personalized ads requested (consent declined or pending)");
+        }
+        return builder.build();
     }
 
     private void preloadInterstitial() {
@@ -119,7 +134,9 @@ public class AdManager {
                 @Override
                 public void onAdFailedToLoad(@NonNull LoadAdError error) {
                     interstitialAd = null;
-                    Log.w(TAG, "preloadInterstitial: FAILED — code=" + error.getCode() + " message=" + error.getMessage());
+                    Log.w(TAG, "preloadInterstitial: FAILED — code=" + error.getCode()
+                            + " message=" + error.getMessage()
+                            + " responseInfo=" + error.getResponseInfo());
                 }
             });
     }
@@ -256,7 +273,9 @@ public class AdManager {
                 public void onAdFailedToLoad(@NonNull LoadAdError error) {
                     rewardedAd = null;
                     rewardedAdLoadFailed = true;
-                    Log.w(TAG, "Rewarded failed to load: " + error.getMessage());
+                    Log.w(TAG, "Rewarded failed to load: code=" + error.getCode()
+                            + " message=" + error.getMessage()
+                            + " responseInfo=" + error.getResponseInfo());
                 }
             });
     }
@@ -351,6 +370,9 @@ public class AdManager {
 
         Bundle extras = new Bundle();
         extras.putString("collapsible", "bottom");
+        if (!ConsentHelper.canRequestPersonalizedAds()) {
+            extras.putString("npa", "1");
+        }
 
         AdRequest adRequest = new AdRequest.Builder()
                 .addNetworkExtrasBundle(AdMobAdapter.class, extras)
@@ -390,6 +412,9 @@ public class AdManager {
 
                     Bundle extras = new Bundle();
                     extras.putString("collapsible", "bottom");
+                    if (!ConsentHelper.canRequestPersonalizedAds()) {
+                        extras.putString("npa", "1");
+                    }
 
                     AdRequest adRequest = new AdRequest.Builder()
                             .addNetworkExtrasBundle(AdMobAdapter.class, extras)

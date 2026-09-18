@@ -66,13 +66,21 @@ public class AdsConfigTest {
 
     @Test
     public void adUnitIds_sharePublisherId() {
-        String testPublisherId = "3940256099942544";
-        assertTrue(AdsConfig.getAdmobAppId().contains(testPublisherId));
-        assertTrue(AdsConfig.getAdUnitBanner().contains(testPublisherId));
-        assertTrue(AdsConfig.getAdUnitInterstitial().contains(testPublisherId));
-        assertTrue(AdsConfig.getAdUnitRewarded().contains(testPublisherId));
-        assertTrue(AdsConfig.getAdUnitNative().contains(testPublisherId));
-        assertTrue(AdsConfig.getAdUnitAppOpen().contains(testPublisherId));
+        String appId = AdsConfig.getAdmobAppId();
+        String prefix = "ca-app-pub-";
+        int start = appId.indexOf(prefix);
+        int end = appId.indexOf("~");
+        assertTrue("App ID should start with " + prefix, start != -1);
+        assertTrue("App ID should contain ~ delimiter", end > start);
+        String publisherId = appId.substring(start + prefix.length(), end);
+        assertFalse("Publisher ID should not be empty", publisherId.isEmpty());
+
+        assertTrue(AdsConfig.getAdmobAppId().contains(publisherId));
+        assertTrue(AdsConfig.getAdUnitBanner().contains(publisherId));
+        assertTrue(AdsConfig.getAdUnitInterstitial().contains(publisherId));
+        assertTrue(AdsConfig.getAdUnitRewarded().contains(publisherId));
+        assertTrue(AdsConfig.getAdUnitNative().contains(publisherId));
+        assertTrue(AdsConfig.getAdUnitAppOpen().contains(publisherId));
     }
 
     @Test

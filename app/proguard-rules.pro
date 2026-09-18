@@ -163,15 +163,29 @@
 
 # ── AdMob / Google Mobile Ads ──────────────────────────────
 -keep class com.google.android.gms.ads.** { *; }
+-keep interface com.google.android.gms.ads.** { *; }
 -keep class com.google.android.gms.ads.internal.** { *; }
 -keep class com.google.android.gms.internal.ads.** { *; }
 -keep class com.google.android.gms.tasks.** { *; }
 -keep class com.google.android.gms.common.internal.zzb { *; }
+-keep class com.google.android.gms.ads.identifier.** { *; }
+-keep class com.google.ads.mediation.** { *; }
+-keep class com.google.android.gms.ads.mediation.** { *; }
+-keep class com.google.ads.mediation.admob.AdMobAdapter { *; }
+-keep class com.google.android.gms.dynamite.** { *; }
 -keep class com.google.android.ump.** { *; }
+-keep interface com.google.android.ump.** { *; }
+
+# AdMob renders ads in WebViews using JavaScript interface methods
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+
 -dontwarn com.google.android.gms.**
 -dontwarn com.google.android.gms.ads.**
 -dontwarn com.google.android.gms.internal.ads.**
 -dontwarn com.google.android.gms.tasks.**
+-dontwarn com.google.android.gms.common.**
 
 # ── App ad management classes ──────────────────────────────
 -keep class com.tansoft.ps1emulator.ads.** { *; }

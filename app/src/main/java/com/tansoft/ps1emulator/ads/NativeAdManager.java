@@ -1,11 +1,13 @@
 package com.tansoft.ps1emulator.ads;
 
 import android.content.Context;
+import android.os.Bundle;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.google.ads.mediation.admob.AdMobAdapter;
 import com.google.android.gms.ads.AdListener;
 import com.google.android.gms.ads.AdLoader;
 import com.google.android.gms.ads.AdRequest;
@@ -94,13 +96,22 @@ public class NativeAdManager {
                             isLoading = false;
                         }
                     }
-                    Log.w(TAG, "Native ad failed to load: " + error.getMessage());
+                    Log.w(TAG, "Native ad failed to load: code=" + error.getCode()
+                        + ", message=" + error.getMessage()
+                        + ", responseInfo=" + error.getResponseInfo());
                 }
             })
             .withNativeAdOptions(new NativeAdOptions.Builder().build())
             .build();
 
-        adLoader.loadAds(new AdRequest.Builder().build(), needed);
+        AdRequest.Builder adRequestBuilder = new AdRequest.Builder();
+        if (!ConsentHelper.canRequestPersonalizedAds()) {
+            Bundle npaExtras = new Bundle();
+            npaExtras.putString("npa", "1");
+            adRequestBuilder.addNetworkExtrasBundle(AdMobAdapter.class, npaExtras);
+        }
+
+        adLoader.loadAds(adRequestBuilder.build(), needed);
     }
 
     /**

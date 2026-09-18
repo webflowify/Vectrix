@@ -103,13 +103,26 @@
     <!-- Attribution label for the emulation foreground service (API 30+) -->
     <string name="attribution_emulator_audio">Emulation audio and video</string>
 
-    <!-- AdMob test IDs (Google-provided sample IDs for development) -->
-    <string name="admob_app_id">ca-app-pub-3940256099942544~3347511713</string>
-    <string name="ad_unit_banner">ca-app-pub-3940256099942544/6300978111</string>
-    <string name="ad_unit_interstitial">ca-app-pub-3940256099942544/1033173712</string>
-    <string name="ad_unit_rewarded">ca-app-pub-3940256099942544/5224354917</string>
-    <string name="ad_unit_native">ca-app-pub-3940256099942544/2247696110</string>
-    <string name="ad_unit_app_open">ca-app-pub-3940256099942544/9257395921</string>
+    <!-- ══════════════════════════════════════════════════════════════
+         ADMOB IDs — SWITCH BETWEEN TEST AND PRODUCTION BELOW
+         Uncomment ONE set, leave the other commented out.
+         ══════════════════════════════════════════════════════════════ -->
+
+    <!-- ── Production IDs (uncomment for release) ──────────────────── -->
+    <string name="admob_app_id">ca-app-pub-3053133134073218~3721011285</string>
+    <string name="ad_unit_banner">ca-app-pub-3053133134073218/4750644628</string>
+    <string name="ad_unit_interstitial">ca-app-pub-3053133134073218/3845239566</string>
+    <string name="ad_unit_rewarded">ca-app-pub-3053133134073218/3059500454</string>
+    <string name="ad_unit_native">ca-app-pub-3053133134073218/8275439167</string>
+    <string name="ad_unit_app_open">ca-app-pub-3053133134073218/5741504117</string>
+
+    <!-- ── Test IDs (uncomment for development/debug) ───────────────── -->
+<!--    <string name="admob_app_id">ca-app-pub-3940256099942544~3347511713</string>-->
+<!--    <string name="ad_unit_banner">ca-app-pub-3940256099942544/6300978111</string>-->
+<!--    <string name="ad_unit_interstitial">ca-app-pub-3940256099942544/1033173712</string>-->
+<!--    <string name="ad_unit_rewarded">ca-app-pub-3940256099942544/5224354917</string>-->
+<!--    <string name="ad_unit_native">ca-app-pub-3940256099942544/2247696110</string>-->
+<!--    <string name="ad_unit_app_open">ca-app-pub-3940256099942544/9257395921</string>-->
 
     <!-- More Apps section -->
     <string name="more_apps_title">More Apps</string>

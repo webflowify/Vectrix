@@ -264,7 +264,9 @@ public class LibraryActivity extends AppCompatActivity
 
                 @Override
                 public void onAdFailedToLoad(@NonNull com.google.android.gms.ads.LoadAdError error) {
-                    Log.w(TAG, "Banner onAdFailedToLoad: code=" + error.getCode() + " message=" + error.getMessage());
+                    Log.w(TAG, "Banner onAdFailedToLoad: code=" + error.getCode()
+                            + " message=" + error.getMessage()
+                            + " responseInfo=" + error.getResponseInfo());
                     bannerContainer.setVisibility(View.GONE);
                     adjustContentForBanner(0);
                 }

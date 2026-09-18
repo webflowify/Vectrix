@@ -11,6 +11,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.google.ads.mediation.admob.AdMobAdapter;
 import com.google.android.gms.ads.AdError;
 import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.ads.FullScreenContentCallback;
@@ -32,7 +33,7 @@ import java.lang.ref.WeakReference;
 public class AppOpenAdManager implements Application.ActivityLifecycleCallbacks {
 
     private static final String TAG = "AppOpenAdManager";
-    private static final long SHOW_TIMEOUT_MS = 4_000;
+    private static final long SHOW_TIMEOUT_MS = 6_000;
     private static final int MAX_RETRY_COUNT = 3;
     private static final long RETRY_BASE_DELAY_MS = 2_000;
     private static final long FOUR_HOURS_MS = 4 * 3600_000L;
@@ -184,7 +185,8 @@ public class AppOpenAdManager implements Application.ActivityLifecycleCallbacks 
                         appOpenAd = null;
                         isLoading = false;
                         Log.w(TAG, "App Open ad failed to load (code=" + error.getCode()
-                            + ", message=" + error.getMessage() + ")");
+                            + ", message=" + error.getMessage()
+                            + ", responseInfo=" + error.getResponseInfo() + ")");
 
                         // For cold-start splash, immediately proceed so the user is not blocked
                         if (pendingShowActive) {
@@ -208,7 +210,13 @@ public class AppOpenAdManager implements Application.ActivityLifecycleCallbacks 
     }
 
     private AdRequest buildAdRequest() {
-        return new AdRequest.Builder().build();
+        AdRequest.Builder builder = new AdRequest.Builder();
+        if (!ConsentHelper.canRequestPersonalizedAds()) {
+            Bundle npaExtras = new Bundle();
+            npaExtras.putString("npa", "1");
+            builder.addNetworkExtrasBundle(AdMobAdapter.class, npaExtras);
+        }
+        return builder.build();
     }
 
     // ── Cold Start (Splash) Show ───────────────────────────────

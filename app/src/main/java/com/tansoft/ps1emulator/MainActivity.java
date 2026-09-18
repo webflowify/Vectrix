@@ -54,7 +54,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
         ConsentHelper.requestConsentIfNeeded(this, () -> {
-            Log.d(TAG, "Consent resolved — AdManager already initialized from Application");
+            Log.d(TAG, "Consent resolved — preloading ads and showing app-open if ready");
+            AdManager.getInstance().preloadAds();
             AppOpenAdManager.getInstance().markSdkInitialized();
             AppOpenAdManager.getInstance().showWhenReady(this, () -> {
                 proceedToNext(nextIntent);
